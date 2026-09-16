@@ -111,6 +111,59 @@ if st.button(run_button_text, type="primary", use_container_width=True):
 
     st.success("작업이 성공적으로 완료되었습니다!")
     
+    # ------------------
+    # 복사 버튼 컴포넌트 추가
+    import streamlit.components.v1 as components
+    import json
+    
+    safe_text = json.dumps(blog_post_content)
+    copy_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    </head>
+    <body style="margin: 0; padding: 0;">
+        <div id="content" style="display:none; text-align: left;"></div>
+        <button onclick="copyToClipboard()" style="width: 100%; padding: 12px; background-color: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+            📋 블로그용 전체 복사하기 (디자인/서식 포함)
+        </button>
+        
+        <script>
+            const mdText = {safe_text};
+            const htmlText = marked.parse(mdText);
+            document.getElementById('content').innerHTML = htmlText;
+            
+            function copyToClipboard() {{
+                const contentDiv = document.getElementById('content');
+                contentDiv.style.display = 'block';
+                
+                const range = document.createRange();
+                range.selectNodeContents(contentDiv);
+                
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                try {{
+                    document.execCommand('copy');
+                    const btn = document.querySelector('button');
+                    btn.innerText = '✅ 복사 완료! 네이버 블로그에 바로 붙여넣기(Ctrl+V) 하세요!';
+                    btn.style.backgroundColor = '#28a745';
+                }} catch(e) {{
+                    alert('복사 실패! 마우스로 드래그해서 복사해주세요.');
+                }}
+                
+                selection.removeAllRanges();
+                contentDiv.style.display = 'none';
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    components.html(copy_html, height=60)
+    # ------------------
+    
     # 결과물 출력 (탭으로 구성하여 UI 깔끔하게)
     tab1, tab2 = st.tabs(["📝 미리보기 (Preview)", "📜 마크다운 원문 (Raw Markdown)"])
     
