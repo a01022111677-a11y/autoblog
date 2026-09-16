@@ -17,25 +17,30 @@ st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="centered
 st.title("📝 AutoBlog 자동 포스팅 시스템")
 st.markdown("네이버 뉴스 검색과 Gemini AI를 활용하여 팩트 기반의 블로그 글을 자동으로 생성합니다.")
 
-# 사이드바 설정 (환경 변수 상태 및 키워드 설정)
+# 사이드바 설정 (환경 변수 상태)
 with st.sidebar:
     st.header("⚙️ 설정 (Settings)")
-    
-    # 키워드 직접 입력 (입력값이 바뀌면 세션 초기화)
-    def on_keyword_change():
-        if 'selected_topic' in st.session_state:
-            del st.session_state['selected_topic']
-            
-    keyword_input = st.text_input("검색 키워드 직접 입력", value=SEARCH_KEYWORD, on_change=on_keyword_change)
-    
-    st.divider()
     st.subheader("🔑 API 연동 상태")
     st.write("🟢 네이버 API" if NAVER_API_KEY_ID else "🔴 네이버 API (키 필요)")
     st.write("🟢 Gemini AI" if GEMINI_API_KEY else "🔴 Gemini AI (키 필요)")
 
-# 메인 화면
+st.divider()
+
+# 1. 키워드 직접 입력 영역
+st.subheader("🔍 검색 키워드 직접 입력")
+st.write("원하시는 키워드를 입력하세요. 띄어쓰기로 여러 개를 입력하시면(예: `삼성전자 애플 테슬라`) 해당 키워드들이 모두 포함된 핫한 기사를 찾아 종합해 줍니다!")
+
+def on_keyword_change():
+    if 'selected_topic' in st.session_state:
+        del st.session_state['selected_topic']
+        
+keyword_input = st.text_input("키워드 입력 후 엔터(Enter)를 치세요", value=SEARCH_KEYWORD, on_change=on_keyword_change)
+
+st.divider()
+
+# 2. 핫이슈 빠른 선택 영역
 st.subheader("📌 핫이슈 빠른 선택")
-st.write("원하는 주제 버튼을 누르면 최신 뉴스를 검색하여 블로그를 작성합니다.")
+st.write("또는 아래의 주제 버튼을 누르면 해당 분야의 최신 뉴스를 자동으로 검색합니다.")
 
 # 첫 번째 줄 버튼
 cols1 = st.columns(4)
@@ -61,7 +66,7 @@ if cols2[3].button("⚽ 스포츠", use_container_width=True):
 
 st.divider()
 
-# 검색 키워드가 세션에 있거나 수동으로 입력한 경우
+# 3. 실행 영역
 target_keyword = st.session_state.get('selected_topic', keyword_input)
 
 if 'selected_topic' in st.session_state:
