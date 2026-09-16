@@ -21,8 +21,12 @@ st.markdown("네이버 뉴스 검색과 Gemini AI를 활용하여 팩트 기반�
 with st.sidebar:
     st.header("⚙️ 설정 (Settings)")
     
-    # 키워드 입력
-    keyword_input = st.text_input("검색 키워드", value=SEARCH_KEYWORD)
+    # 키워드 직접 입력 (입력값이 바뀌면 세션 초기화)
+    def on_keyword_change():
+        if 'selected_topic' in st.session_state:
+            del st.session_state['selected_topic']
+            
+    keyword_input = st.text_input("검색 키워드 직접 입력", value=SEARCH_KEYWORD, on_change=on_keyword_change)
     
     st.divider()
     st.subheader("🔑 API 연동 상태")
@@ -30,9 +34,46 @@ with st.sidebar:
     st.write("🟢 Gemini AI" if GEMINI_API_KEY else "🔴 Gemini AI (키 필요)")
 
 # 메인 화면
-if st.button("🚀 블로그 글 생성 시작", type="primary", use_container_width=True):
+st.subheader("📌 핫이슈 빠른 선택")
+st.write("원하는 주제 버튼을 누르면 최신 뉴스를 검색하여 블로그를 작성합니다.")
+
+# 첫 번째 줄 버튼
+cols1 = st.columns(4)
+if cols1[0].button("🏠 부동산", use_container_width=True):
+    st.session_state.selected_topic = "부동산 핫이슈"
+if cols1[1].button("📈 경제/증권", use_container_width=True):
+    st.session_state.selected_topic = "경제 증권 핫이슈"
+if cols1[2].button("⚖️ 정치", use_container_width=True):
+    st.session_state.selected_topic = "정치 핫이슈"
+if cols1[3].button("👥 사회", use_container_width=True):
+    st.session_state.selected_topic = "사회 핫이슈"
+
+# 두 번째 줄 버튼
+cols2 = st.columns(4)
+if cols2[0].button("🧬 과학/IT", use_container_width=True):
+    st.session_state.selected_topic = "과학 IT 핫이슈"
+if cols2[1].button("🌍 세계/국제", use_container_width=True):
+    st.session_state.selected_topic = "국제 핫이슈"
+if cols2[2].button("🎤 연예", use_container_width=True):
+    st.session_state.selected_topic = "연예계 핫이슈"
+if cols2[3].button("⚽ 스포츠", use_container_width=True):
+    st.session_state.selected_topic = "스포츠 핫이슈"
+
+st.divider()
+
+# 검색 키워드가 세션에 있거나 수동으로 입력한 경우
+target_keyword = st.session_state.get('selected_topic', keyword_input)
+
+if 'selected_topic' in st.session_state:
+    st.info(f"💡 현재 선택된 주제: **'{target_keyword}'**\n\n이 주제의 최신 뉴스를 바탕으로 블로그 글을 작성하시겠습니까?")
+    run_button_text = "✅ 네, 블로그 글 작성 시작하기!"
+else:
+    st.info(f"💡 직접 입력한 키워드: **'{target_keyword}'**\n\n이 키워드에 대한 최신 뉴스를 긁어와 블로그 글을 씁니다.")
+    run_button_text = f"🚀 '{target_keyword}'(으)로 블로그 글 생성 시작"
+
+if st.button(run_button_text, type="primary", use_container_width=True):
     if not NAVER_API_KEY_ID or not GEMINI_API_KEY:
-        st.error("API 키가 설정되지 않았습니다. .env 파일을 확인해주세요!")
+        st.error("API 키가 설정되지 않았습니다. 사이드바 설정을 확인해주세요!")
         st.stop()
         
     st.divider()
@@ -40,8 +81,8 @@ if st.button("🚀 블로그 글 생성 시작", type="primary", use_container_w
     # 진행 상태 표시 (스피너 및 상태 텍스트)
     with st.status("로봇이 열심히 일하고 있습니다...", expanded=True) as status:
         # 1. 뉴스 검색
-        st.write(f"🔍 '{keyword_input}' 키워드로 최신 뉴스를 검색합니다...")
-        news_items = fetch_latest_news(keyword_input, display=5)
+        st.write(f"🔍 '{target_keyword}' 키워드로 최신 뉴스를 검색합니다...")
+        news_items = fetch_latest_news(target_keyword, display=5)
         if not news_items:
             status.update(label="뉴스 검색 실패", state="error")
             st.stop()
@@ -55,21 +96,12 @@ if st.button("🚀 블로그 글 생성 시작", type="primary", use_container_w
             
         # 3. AI 글 생성
         st.write("🤖 Gemini AI가 글을 요약하고 종합적인 블로그 포스트를 작성 중입니다...")
-        blog_post_content = synthesize_blog_post(news_items_with_content, keyword_input)
+        blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
         if not blog_post_content:
             status.update(label="AI 글 생성 실패", state="error")
             st.stop()
             
-        # 4. 파일 저장 처리
-        st.write("💾 완성된 글을 파일로 저장하는 중...")
-        title_match = re.search(r'^#\s+(.*)', blog_post_content, re.MULTILINE)
-        if title_match:
-            post_title = title_match.group(1).strip()
-        else:
-            post_title = f"[{datetime.datetime.now().strftime('%Y년 %m월 %d일')}] {keyword_input} 관련 최신 뉴스 종합"
-            
-        publish_to_naver_blog(post_title, blog_post_content)
-        
+        # 4. 완료 처리
         status.update(label="블로그 포스트 생성 완료!", state="complete", expanded=False)
 
     st.success("작업이 성공적으로 완료되었습니다!")
@@ -87,6 +119,6 @@ if st.button("🚀 블로그 글 생성 시작", type="primary", use_container_w
     st.download_button(
         label="📥 Markdown 파일로 다운로드",
         data=blog_post_content,
-        file_name=f"{keyword_input}_블로그포스트.md",
+        file_name=f"{target_keyword}_블로그포스트.md",
         mime="text/markdown"
     )

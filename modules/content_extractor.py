@@ -13,12 +13,12 @@ def extract_article_content(url):
         
         # 텍스트가 너무 짧으면 추출 실패로 간주
         if len(article.text) < 50:
-            return None
+            return None, None
             
-        return article.text
+        return article.text, article.top_image
     except Exception as e:
         print(f"[Content Extractor] 본문 추출 중 오류 발생 ({url}): {e}")
-        return None
+        return None, None
 
 def extract_contents_from_news_items(news_items):
     """
@@ -30,10 +30,11 @@ def extract_contents_from_news_items(news_items):
         url_to_parse = item.get("originallink") or item.get("link")
         
         print(f"[{item['title']}] 본문 추출 시도 중... ({url_to_parse})")
-        content = extract_article_content(url_to_parse)
+        content_text, top_image = extract_article_content(url_to_parse)
         
-        if content:
-            item['content'] = content
+        if content_text:
+            item['content'] = content_text
+            item['image_url'] = top_image
             results.append(item)
         
         # 크롤링 차단 방지를 위한 딜레이

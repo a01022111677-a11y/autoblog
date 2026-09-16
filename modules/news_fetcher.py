@@ -10,8 +10,8 @@ def fetch_latest_news(keyword, display=5):
         raise ValueError("NCP API 키가 설정되지 않았습니다.")
 
     enc_text = urllib.parse.quote(keyword)
-    # NCP API HUB 검색 API 주소
-    url = f"https://naverapihub.apigw.ntruss.com/search/v1/news?query={enc_text}&display={display}&sort=sim"
+    # NCP API HUB 검색 API 주소 (최신순 정렬: sort=date)
+    url = f"https://naverapihub.apigw.ntruss.com/search/v1/news?query={enc_text}&display={display}&sort=date"
     
     headers = {
         "X-NCP-APIGW-API-KEY-ID": NAVER_API_KEY_ID,
