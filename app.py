@@ -124,39 +124,35 @@ if st.button(run_button_text, type="primary", use_container_width=True):
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     </head>
     <body style="margin: 0; padding: 0;">
-        <div id="content" style="display:none; text-align: left;"></div>
-        <button onclick="copyToClipboard()" style="width: 100%; padding: 12px; background-color: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+        <button id="copyBtn" style="width: 100%; padding: 12px; background-color: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
             📋 블로그용 전체 복사하기 (디자인/서식 포함)
         </button>
         
         <script>
             const mdText = {safe_text};
             const htmlText = marked.parse(mdText);
-            document.getElementById('content').innerHTML = htmlText;
             
-            function copyToClipboard() {{
-                const contentDiv = document.getElementById('content');
-                contentDiv.style.display = 'block';
+            document.getElementById('copyBtn').addEventListener('click', () => {{
+                // 색상, 배경색 등을 싹 빼고 '순수 HTML'만 복사하는 핵심 마법 🪄
+                const listener = (e) => {{
+                    e.clipboardData.setData('text/html', htmlText);
+                    e.clipboardData.setData('text/plain', mdText);
+                    e.preventDefault();
+                }};
                 
-                const range = document.createRange();
-                range.selectNodeContents(contentDiv);
+                document.addEventListener('copy', listener);
+                document.execCommand('copy');
+                document.removeEventListener('copy', listener);
                 
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
+                const btn = document.getElementById('copyBtn');
+                btn.innerText = '✅ 복사 완료! 네이버 블로그에 바로 붙여넣기(Ctrl+V) 하세요!';
+                btn.style.backgroundColor = '#28a745';
                 
-                try {{
-                    document.execCommand('copy');
-                    const btn = document.querySelector('button');
-                    btn.innerText = '✅ 복사 완료! 네이버 블로그에 바로 붙여넣기(Ctrl+V) 하세요!';
-                    btn.style.backgroundColor = '#28a745';
-                }} catch(e) {{
-                    alert('복사 실패! 마우스로 드래그해서 복사해주세요.');
-                }}
-                
-                selection.removeAllRanges();
-                contentDiv.style.display = 'none';
-            }}
+                setTimeout(() => {{
+                    btn.innerText = '📋 블로그용 전체 복사하기 (디자인/서식 포함)';
+                    btn.style.backgroundColor = '#ff4b4b';
+                }}, 3000);
+            }});
         </script>
     </body>
     </html>
