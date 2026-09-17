@@ -20,6 +20,21 @@ API_BASE = "https://sharelink.toss.im/openapi"
 _token_cache = {"token": None, "expires_at": 0}
 
 
+def _proxies():
+    """고정IP 프록시 경유 설정 (Streamlit Cloud처럼 IP 등록이 불가한 환경용).
+    Secrets/env에 TOSS_HTTPS_PROXY="http://user:pass@host:port" 형식으로 넣으면 사용.
+    미설정 시 None (직접 연결).
+    """
+    try:
+        from config import TOSS_HTTPS_PROXY
+        url = (TOSS_HTTPS_PROXY or "").strip()
+    except Exception:
+        url = ""
+    if not url:
+        return None
+    return {"http": url, "https": url}
+
+
 def _get_access_token(access_key, secret_key):
     """client_credentials 방식으로 액세스 토큰 발급 (만료 60초 전 갱신)."""
     if not access_key or not secret_key:
@@ -39,6 +54,7 @@ def _get_access_token(access_key, secret_key):
             "scope": "sharelink:read sharelink:write",
         },
         timeout=15,
+        proxies=_proxies(),
     )
     resp.raise_for_status()
     data = resp.json()
@@ -58,6 +74,7 @@ def fetch_best_selling(access_key, secret_key, size=30):
         headers={"Authorization": f"Bearer {token}"},
         params={"size": max(1, min(size, 100))},
         timeout=15,
+        proxies=_proxies(),
     )
     resp.raise_for_status()
     data = resp.json()
@@ -75,6 +92,7 @@ def fetch_today_deals(access_key, secret_key, size=10):
             headers={"Authorization": f"Bearer {token}"},
             params={"size": max(1, min(size, 30))},
             timeout=15,
+            proxies=_proxies(),
         )
         resp.raise_for_status()
         data = resp.json()
@@ -96,6 +114,7 @@ def issue_sharelink(access_key, secret_key, publisher_id, taca_item_id):
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         json={"tacaItemId": int(taca_item_id), "publisherId": publisher_id},
         timeout=15,
+        proxies=_proxies(),
     )
     resp.raise_for_status()
     data = resp.json()

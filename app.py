@@ -9,7 +9,7 @@ import json
 from config import (
     NAVER_API_KEY_ID, NAVER_API_KEY, GEMINI_API_KEY, SEARCH_KEYWORD,
     TOSS_ACCESS_KEY, TOSS_SECRET_KEY, TOSS_PUBLISHER_ID,
-    TOSS_PRODUCT_COUNT, TOSS_ENABLED,
+    TOSS_PRODUCT_COUNT, TOSS_ENABLED, TOSS_HTTPS_PROXY,
 )
 from modules.news_fetcher import fetch_latest_news
 from modules.content_extractor import extract_contents_from_news_items
@@ -28,7 +28,12 @@ with st.sidebar:
     st.header("🔌 API 연결 상태")
     st.write("🟢 네이버 뉴스" if (NAVER_API_KEY_ID and NAVER_API_KEY) else "🔴 네이버 뉴스 (Secrets 필요)")
     st.write("🟢 Gemini" if GEMINI_API_KEY else "🔴 Gemini (Secrets 필요)")
-    st.write("🟢 토스쇼핑" if TOSS_ENABLED else "⚪ 토스쇼핑 (미사용)")
+    if not TOSS_ENABLED:
+        st.write("⚪ 토스쇼핑 (미사용)")
+    elif TOSS_HTTPS_PROXY:
+        st.write("🟢 토스쇼핑 (프록시 경유)")
+    else:
+        st.write("🟢 토스쇼핑 (직접 연결)")
     st.divider()
     if st.button("🧪 실시간 연결 테스트", use_container_width=True):
         with st.spinner("테스트 중..."):

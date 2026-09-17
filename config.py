@@ -70,6 +70,9 @@ TOSS_ACCESS_KEY = _get_toss_key("TOSS_ACCESS_KEY")
 TOSS_SECRET_KEY = _get_toss_key("TOSS_SECRET_KEY")
 TOSS_PUBLISHER_ID = _get_toss_key("TOSS_PUBLISHER_ID")
 TOSS_PRODUCT_COUNT = _get_int("TOSS_PRODUCT_COUNT", 3)
+# 고정IP 프록시 (Streamlit Cloud처럼 출발지 IP 등록이 불가한 환경용)
+# 예: TOSS_HTTPS_PROXY = "http://user:pass@proxy-host:8080" (미설정 시 직접 연결)
+TOSS_HTTPS_PROXY = _get_key("TOSS_HTTPS_PROXY", None)
 # 기본은 키 3개가 다 있을 때 자동 삽입. Secrets에 TOSS_ENABLED=false를 넣으면 강제 비활성화.
 TOSS_ENABLED = _get_bool(
     "TOSS_ENABLED",
