@@ -13,8 +13,8 @@ from config import (
 )
 from modules.news_fetcher import fetch_latest_news
 from modules.content_extractor import extract_contents_from_news_items
-from modules.synthesizer import synthesize_blog_post
-from modules.toss_shopping import append_toss_footer
+from modules.synthesizer import synthesize_blog_post, gemini_model_chain
+from modules.toss_shopping import append_toss_footer, fetch_best_selling
 
 # 페이지 설정 (와이드 모드로 변경)
 st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="wide")
@@ -22,6 +22,53 @@ st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="wide")
 # 세션 상태(보관함) 초기화
 if 'history' not in st.session_state:
     st.session_state.history = []
+
+# 좌측 API 연결 상태 뷰어 (키 값 노출 없음 — 상태 표시 전용)
+with st.sidebar:
+    st.header("🔌 API 연결 상태")
+    st.write("🟢 네이버 뉴스" if (NAVER_API_KEY_ID and NAVER_API_KEY) else "🔴 네이버 뉴스 (Secrets 필요)")
+    st.write("🟢 Gemini" if GEMINI_API_KEY else "🔴 Gemini (Secrets 필요)")
+    st.write("🟢 토스쇼핑" if TOSS_ENABLED else "⚪ 토스쇼핑 (미사용)")
+    st.divider()
+    if st.button("🧪 실시간 연결 테스트", use_container_width=True):
+        with st.spinner("테스트 중..."):
+            try:
+                if not (NAVER_API_KEY_ID and NAVER_API_KEY):
+                    st.write("🔴 네이버: 키 없음")
+                else:
+                    _items = fetch_latest_news("테스트", display=1)
+                    st.write(f"🟢 네이버: 정상 ({len(_items)}건)" if _items else "🟡 네이버: 응답 0건 (키/할당량 확인)")
+            except Exception as e:
+                st.write(f"🔴 네이버: 실패 ({str(e)[:120]})")
+            try:
+                if not GEMINI_API_KEY:
+                    st.write("🔴 Gemini: 키 없음")
+                else:
+                    from google import genai as _genai
+                    _gclient = _genai.Client(api_key=GEMINI_API_KEY)
+                    _gok, _gerr = "", ""
+                    for _m in gemini_model_chain():
+                        try:
+                            _r = _gclient.models.generate_content(model=_m, contents="ping")
+                            if (_r.text or "").strip():
+                                _gok = _m
+                                break
+                        except Exception as e:
+                            _gerr = str(e)[:150]
+                    st.write(f"🟢 Gemini: 정상 ({_gok})" if _gok else f"🔴 Gemini: 실패 ({_gerr})")
+            except Exception as e:
+                st.write(f"🔴 Gemini: 실패 ({str(e)[:120]})")
+            try:
+                if not TOSS_ENABLED:
+                    st.write("⚪ 토스: 미사용 (키 3개 필요)")
+                else:
+                    _titems = fetch_best_selling(TOSS_ACCESS_KEY, TOSS_SECRET_KEY, size=1)
+                    _tname = _titems[0].get("displayName", "")[:25] if _titems else ""
+                    st.write(f"🟢 토스: 정상 ({_tname})" if _titems else "🟡 토스: 응답 0건")
+            except Exception as e:
+                st.write(f"🔴 토스: 실패 ({str(e)[:150]})")
+    st.divider()
+    st.info("💡 키 관리는 우측 하단 Secrets에서만. 여긴 상태 표시 전용입니다.")
 
 def _attach_toss_footer(blog_content, keyword):
     """토스 설정이 켜져 있으면 베스트상품 박스를 하단에 삽입. 실패해도 원본 반환."""

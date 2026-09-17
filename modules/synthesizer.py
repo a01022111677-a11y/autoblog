@@ -14,6 +14,11 @@ def _model_chain():
             chain.append(m)
     return chain
 
+
+def gemini_model_chain():
+    """연결 테스트 등 외부에서 모델 순서를 가져갈 때 사용."""
+    return _model_chain()
+
 def synthesize_blog_post(news_items, keyword, api_key=None):
     """
     여러 뉴스 본문을 종합하여 하나의 블로그 포스트(Markdown 포맷)로 작성합니다.
