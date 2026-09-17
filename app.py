@@ -163,7 +163,7 @@ with col_left:
                         continue
                     _remember_titles(news_items_with_content)
                         
-                    blog_post_content = synthesize_blog_post(news_items_with_content, topic)
+                    blog_post_content = synthesize_blog_post(news_items_with_content, topic, ad_count=int(TOSS_PRODUCT_COUNT or 3))
 
                     if not blog_post_content:
                         st.write(f"⚠️ '{topic}' 글 생성 실패: {getattr(synthesize_blog_post, 'last_error', '')}".strip()[:500])
@@ -229,7 +229,7 @@ with col_left:
                         st.error("기사 본문 추출 실패.")
                     else:
                         _remember_titles(news_items_with_content)
-                        blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
+                        blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword, ad_count=int(TOSS_PRODUCT_COUNT or 3))
                         if not blog_post_content:
                             st.error(f"블로그 글 생성 실패: {getattr(synthesize_blog_post, 'last_error', '')}".strip()[:500])
                 

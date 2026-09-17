@@ -19,7 +19,7 @@ def gemini_model_chain():
     """연결 테스트 등 외부에서 모델 순서를 가져갈 때 사용."""
     return _model_chain()
 
-def synthesize_blog_post(news_items, keyword, api_key=None):
+def synthesize_blog_post(news_items, keyword, api_key=None, ad_count=3):
     """
     여러 뉴스 본문을 종합하여 하나의 블로그 포스트(Markdown 포맷)로 작성합니다.
     api_key가 주어지면 사이드바 입력값을 우선 사용 (Streamlit Cloud 대응).
@@ -50,6 +50,13 @@ def synthesize_blog_post(news_items, keyword, api_key=None):
         for url in image_urls:
             images_instruction += f"- {url}\n"
         
+    # 광고 토큰 목록 (시스템이 실제 상품 카드로 치환)
+    try:
+        ad_count = max(0, min(int(ad_count or 0), 5))
+    except Exception:
+        ad_count = 3
+    ad_tokens = "\n".join(f"[[TOSS_AD_{i}]]" for i in range(1, ad_count + 1))
+
     prompt = f"""
 당신은 '3분 카레'라는 닉네임을 쓰는 친근하고 활발한 네이버 블로그 운영자이자, 통찰력 있는 전문가입니다. 
 아래 제공된 여러 건의 '{keyword}' 관련 최신 뉴스 기사들을 종합하여 
@@ -84,7 +91,9 @@ def synthesize_blog_post(news_items, keyword, api_key=None):
    - 말투는 전문가처럼 딱딱하게 쓰지 말고 이웃에게 이야기하듯 아주 친근하고 호들갑스러운 '해요체'를 사용하세요.
 8. 마무리 인사: 카레만의 친근한 마무리 인사와 함께 댓글/공감을 유도하세요.
 9. 해시태그: 글의 맨 마지막(마무리 인사 밑)에는 반드시 본문 내용(키워드)과 관련된 **해시태그를 정확히 10개** 작성해주세요. (예시: #키워드1 #키워드2 ...)
-10. [중요] 토스쇼핑 링크를 절대 임의로 만들지 마세요. 글 하단에는 시스템이 실제 베스트 상품 쉐어링크 박스를 자동 삽입하므로, 본문에서 가짜 상품 URL(toss.shopping, toss.im 등)을 지어내지 마세요.
+10. [중요] 토스쇼핑 링크를 절대 임의로 만들지 마세요. 본문에서 가짜 상품 URL(toss.shopping, toss.im 등)을 지어내지 마세요.
+11. [중요] 상품 광고 자리 표시: 본문 중간(소제목과 소제목 사이 자연스러운 지점)에 아래 토큰을 정확히 {ad_count}개, 1개씩 띄엄띄엄 배치하세요. 토큰은 한 글자도 변형하지 마세요. 시스템이 실제 상품 카드로 치환합니다.
+{ad_tokens}
 
 [뉴스 기사 소스]
 {source_texts}
