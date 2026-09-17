@@ -1,8 +1,7 @@
 @echo off
-REM AutoBlog local start (double-click). Server runs minimized, browser opens, this window closes.
+REM AutoBlog local start (double-click).
+REM This window closes instantly. Server runs hidden, browser opens after boot.
 REM First time only: pip install -r requirements.txt
 cd /d "%~dp0"
-start "" /min streamlit run app.py --server.port 8501 --server.headless true
-timeout /t 6 /nobreak >nul
-start "" http://localhost:8501
+start "" powershell -WindowStyle Hidden -Command "Start-Process streamlit -ArgumentList 'run','app.py','--server.port','8501','--server.headless','true' -WindowStyle Hidden; Start-Sleep -Seconds 7; Start-Process 'http://localhost:8501'"
 exit
