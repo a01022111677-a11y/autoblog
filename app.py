@@ -14,7 +14,7 @@ from config import (
 from modules.news_fetcher import fetch_latest_news
 from modules.content_extractor import extract_contents_from_news_items
 from modules.synthesizer import synthesize_blog_post
-from modules.toss_shopping import append_toss_footer, fetch_best_selling
+from modules.toss_shopping import append_toss_footer
 
 # 페이지 설정 (와이드 모드로 변경)
 st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="wide")
@@ -23,95 +23,22 @@ st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="wide")
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# 사이드바 설정 (Streamlit Secrets > 사이드바 입력 > .env 순으로 유효)
-with st.sidebar:
-    st.header("⚙️ 설정 (Settings)")
-
-    st.subheader("🔑 네이버 / Gemini API")
-    st.caption("입력칸에 넣으면 바로 적용됩니다 (새로고침하면 초기화, 영구 저장은 아래 Secrets 참고).")
-    naver_id_in = st.text_input("NAVER_API_KEY_ID", value=NAVER_API_KEY_ID or "", type="password")
-    naver_key_in = st.text_input("NAVER_API_KEY", value=NAVER_API_KEY or "", type="password")
-    gemini_in = st.text_input("GEMINI_API_KEY", value=GEMINI_API_KEY or "", type="password")
-
-    # 유효 키 = 사이드바 입력 우선, 비어 있으면 Secrets/.env 값 사용
-    eff_naver_id = (naver_id_in or "").strip() or NAVER_API_KEY_ID
-    eff_naver_key = (naver_key_in or "").strip() or NAVER_API_KEY
-    eff_gemini = (gemini_in or "").strip() or GEMINI_API_KEY
-
-    st.write("🟢 네이버 API" if (eff_naver_id and eff_naver_key) else "🔴 네이버 API (키 필요)")
-    st.write("🟢 Gemini AI" if eff_gemini else "🔴 Gemini AI (키 필요)")
-
-    st.divider()
-    st.subheader("🛒 토스쇼핑 쉐어링크")
-    toss_enabled = st.checkbox(
-        "블로그 하단에 토스 베스트상품 박스 넣기",
-        value=TOSS_ENABLED,
-        help="베스트 상품 중 글 문맥에 맞는 상품을 골라 추적 링크(shortUrl)로 자동 삽입합니다.",
-    )
-    toss_ak = st.text_input("TOSS_ACCESS_KEY", value=TOSS_ACCESS_KEY or "", type="password")
-    toss_sk = st.text_input("TOSS_SECRET_KEY", value=TOSS_SECRET_KEY or "", type="password")
-    toss_pub = st.text_input("TOSS_PUBLISHER_ID (UUID)", value=TOSS_PUBLISHER_ID or "")
-    toss_cnt = st.number_input("삽입 상품 개수", min_value=1, max_value=5, value=TOSS_PRODUCT_COUNT or 3, step=1)
-
-    eff_toss_ak = (toss_ak or "").strip() or TOSS_ACCESS_KEY
-    eff_toss_sk = (toss_sk or "").strip() or TOSS_SECRET_KEY
-    eff_toss_pub = (toss_pub or "").strip() or TOSS_PUBLISHER_ID
-
-    if toss_enabled and not (eff_toss_ak and eff_toss_sk and eff_toss_pub):
-        st.warning("⚠️ 토스 키 3개(Access/Secret/Publisher)를 모두 입력해야 상품 박스가 들어갑니다. 없으면 글만 생성됩니다.")
-    elif toss_enabled:
-        st.caption("✅ 키가 있으면 글 문맥에 맞는 베스트상품 + shortUrl이 하단에 자동 삽입됩니다.")
-
-    if st.button("🧪 토스 연결 테스트", use_container_width=True):
-        if not (eff_toss_ak and eff_toss_sk):
-            st.error("Access/Secret 키를 먼저 입력하세요.")
-        else:
-            try:
-                with st.spinner("토스 API 연결 중..."):
-                    items = fetch_best_selling(eff_toss_ak, eff_toss_sk, size=1)
-                if items:
-                    st.success(f"연결 성공! 베스트 1위: {items[0].get('displayName','')[:40]}")
-                else:
-                    st.warning("연결은 됐지만 상품이 0건입니다.")
-            except Exception as e:
-                st.error(f"연결 실패: {e}")
-
-    with st.expander("☁️ Streamlit Cloud에 영구 저장하기"):
-        st.markdown(
-            "배포 앱(`...streamlit.app`)에서 새로고침해도 유지하려면 "
-            "**Manage app → Settings → Secrets**에 아래를 붙여넣으세요:"
-        )
-        st.code(
-            'NAVER_API_KEY_ID = "xxx"\n'
-            'NAVER_API_KEY = "xxx"\n'
-            'GEMINI_API_KEY = "xxx"\n'
-            'TOSS_ACCESS_KEY = "xxx"\n'
-            'TOSS_SECRET_KEY = "xxx"\n'
-            'TOSS_PUBLISHER_ID = "550e8400-xxxx-xxxx-xxxx-xxxxxxxxxxxx"',
-            language="toml",
-        )
-        st.caption("저장 후 앱을 Reboot하면 사이드바에 🟢로 표시됩니다. 사이드바 입력은 Secrets보다 우선 적용됩니다.")
-
-    st.divider()
-    st.info("💡 팁: 일괄 생성된 글(보관함)은 웹 브라우저를 '새로고침' 하거나 끄면 초기화됩니다. 생성된 글은 꼭 네이버 블로그에 복사해두세요!")
-
-
 def _attach_toss_footer(blog_content, keyword):
     """토스 설정이 켜져 있으면 베스트상품 박스를 하단에 삽입. 실패해도 원본 반환."""
-    if not blog_content or not toss_enabled:
+    if not blog_content or not TOSS_ENABLED:
         return blog_content
-    if not (eff_toss_ak and eff_toss_sk and eff_toss_pub):
+    if not (TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID):
         return blog_content
     try:
         with st.spinner("🛒 글 문맥에 맞는 토스쇼핑 베스트상품 찾는 중..."):
             return append_toss_footer(
                 blog_content,
                 keyword=keyword,
-                access_key=eff_toss_ak,
-                secret_key=eff_toss_sk,
-                publisher_id=eff_toss_pub,
-                gemini_api_key=eff_gemini,
-                count=int(toss_cnt),
+                access_key=TOSS_ACCESS_KEY,
+                secret_key=TOSS_SECRET_KEY,
+                publisher_id=TOSS_PUBLISHER_ID,
+                gemini_api_key=GEMINI_API_KEY,
+                count=int(TOSS_PRODUCT_COUNT or 3),
             )
     except Exception as e:
         st.warning(f"토스 상품 삽입 실패 (글은 정상 생성됨): {e}")
@@ -119,6 +46,11 @@ def _attach_toss_footer(blog_content, keyword):
 
 st.title("📝 AutoBlog 자동 포스팅 시스템")
 st.markdown("네이버 뉴스 검색과 Gemini AI를 활용하여 팩트 기반의 블로그 글을 자동으로 생성합니다.")
+
+# 우측 하단 Secrets에서 키를 관리하므로 API 키 상태만 조그맣게 표시
+if not NAVER_API_KEY_ID or not GEMINI_API_KEY:
+    st.warning("⚠️ 우측 하단의 [Manage app] -> [Settings] -> [Secrets] 메뉴에 API 키를 등록해야 정상 작동합니다.")
+
 st.divider()
 
 # 화면을 좌우 2분할 (왼쪽: 제어부, 오른쪽: 보관함)
@@ -142,14 +74,14 @@ with col_left:
     st.markdown("### ⚡ 8개 카테고리 자동 일괄 생성")
     st.write("버튼 한 번으로 8개 주제의 최신 뉴스를 모두 긁어와서 글 8개를 연속으로 완성합니다. (약 2~3분 소요)")
     if st.button("🚀 8개 전체 일괄 생성 시작 (커피 한 잔 마시고 오세요!)", type="primary", use_container_width=True):
-        if not eff_naver_id or not eff_naver_key or not eff_gemini:
-            st.error("API 키가 설정되지 않았습니다. 사이드바 설정을 확인해주세요!")
+        if not NAVER_API_KEY_ID or not GEMINI_API_KEY:
+            st.error("API 키가 설정되지 않았습니다. 우측 하단 Secrets 설정을 확인해주세요!")
         else:
             with st.status("로봇이 8개의 글을 순차적으로 작성하고 있습니다...", expanded=True) as status:
                 for icon, topic in TOPICS:
                     st.write(f"🔄 '{icon} {topic}' 작업 중...")
                     
-                    news_items = fetch_latest_news(topic, display=5, api_key_id=eff_naver_id, api_key=eff_naver_key)
+                    news_items = fetch_latest_news(topic, display=5)
                     if not news_items: 
                         st.write(f"⚠️ '{topic}' 뉴스 검색 실패. 건너뜁니다.")
                         continue
@@ -158,7 +90,7 @@ with col_left:
                     if not news_items_with_content: 
                         continue
                         
-                    blog_post_content = synthesize_blog_post(news_items_with_content, topic, api_key=eff_gemini)
+                    blog_post_content = synthesize_blog_post(news_items_with_content, topic)
                     
                     if blog_post_content:
                         blog_post_content = _attach_toss_footer(blog_post_content, topic)
@@ -196,13 +128,13 @@ with col_left:
     target_keyword = selected_topic_for_single if selected_topic_for_single else keyword_input
     
     if st.button(f"▶️ '{target_keyword}'(으)로 개별 생성", use_container_width=True):
-        if not eff_naver_id or not eff_naver_key or not eff_gemini:
-            st.error("API 키가 설정되지 않았습니다.")
+        if not NAVER_API_KEY_ID or not GEMINI_API_KEY:
+            st.error("API 키가 설정되지 않았습니다. 우측 하단 Secrets 설정을 확인해주세요!")
         else:
             with st.status(f"'{target_keyword}' 작성 중...", expanded=True) as status:
-                news_items = fetch_latest_news(target_keyword, display=5, api_key_id=eff_naver_id, api_key=eff_naver_key)
+                news_items = fetch_latest_news(target_keyword, display=5)
                 news_items_with_content = extract_contents_from_news_items(news_items)
-                blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword, api_key=eff_gemini)
+                blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
                 
                 if blog_post_content:
                     blog_post_content = _attach_toss_footer(blog_post_content, target_keyword)

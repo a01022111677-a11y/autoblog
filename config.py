@@ -32,6 +32,15 @@ def _get_int(name, default):
         return default
 
 
+def _get_bool(name, default):
+    val = _get_key(name, None)
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return val
+    return str(val).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
 # Naver API HUB (NCP) Settings
 NAVER_API_KEY_ID = _get_key("NAVER_API_KEY_ID")
 NAVER_API_KEY = _get_key("NAVER_API_KEY")
@@ -51,5 +60,8 @@ TOSS_ACCESS_KEY = _get_key("TOSS_ACCESS_KEY")
 TOSS_SECRET_KEY = _get_key("TOSS_SECRET_KEY")
 TOSS_PUBLISHER_ID = _get_key("TOSS_PUBLISHER_ID")
 TOSS_PRODUCT_COUNT = _get_int("TOSS_PRODUCT_COUNT", 3)
-# 키가 3개 다 있을 때만 자동 삽입 활성화
-TOSS_ENABLED = bool(TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID)
+# 기본은 키 3개가 다 있을 때 자동 삽입. Secrets에 TOSS_ENABLED=false를 넣으면 강제 비활성화.
+TOSS_ENABLED = _get_bool(
+    "TOSS_ENABLED",
+    bool(TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID),
+)
