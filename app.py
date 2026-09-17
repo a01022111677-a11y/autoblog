@@ -22,6 +22,16 @@ st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="wide")
 # 세션 상태(보관함) 초기화
 if 'history' not in st.session_state:
     st.session_state.history = []
+if 'recent_titles' not in st.session_state:
+    st.session_state.recent_titles = []  # 중복 기사 방지용 최근 사용 제목
+
+
+def _remember_titles(news_items):
+    for _n in news_items:
+        _t = re.sub(r'<[^>]+>', '', _n.get('title', '') or '').strip()
+        if _t:
+            st.session_state.recent_titles.append(_t)
+    st.session_state.recent_titles = st.session_state.recent_titles[-40:]
 
 # 좌측 API 연결 상태 뷰어 (키 값 노출 없음 — 상태 표시 전용)
 with st.sidebar:
@@ -143,15 +153,16 @@ with col_left:
                 for icon, topic in TOPICS:
                     st.write(f"🔄 '{icon} {topic}' 작업 중...")
                     
-                    news_items = fetch_latest_news(topic, display=5)
+                    news_items = fetch_latest_news(topic, display=5, exclude_titles=st.session_state.recent_titles)
                     if not news_items: 
                         st.write(f"⚠️ '{topic}' 뉴스 검색 실패. 건너뜁니다.")
                         continue
-                        
+                         
                     news_items_with_content = extract_contents_from_news_items(news_items)
                     if not news_items_with_content: 
                         st.write(f"⚠️ '{topic}' 본문 추출 실패. 건너뜁니다.")
                         continue
+                    _remember_titles(news_items_with_content)
                         
                     blog_post_content = synthesize_blog_post(news_items_with_content, topic)
 
@@ -187,14 +198,22 @@ with col_left:
     # 버튼들
     cols1 = st.columns(4)
     cols2 = st.columns(4)
-    selected_topic_for_single = None
-    
+    if 'single_topic' not in st.session_state:
+        st.session_state.single_topic = None
+
     for i, (icon, topic) in enumerate(TOPICS):
         target_col = cols1[i] if i < 4 else cols2[i-4]
         if target_col.button(icon, use_container_width=True):
-            selected_topic_for_single = topic
-            
-    target_keyword = selected_topic_for_single if selected_topic_for_single else keyword_input
+            st.session_state.single_topic = topic
+
+    if st.session_state.single_topic:
+        _c1, _c2 = st.columns([4, 1])
+        _c1.caption(f"선택됨: {st.session_state.single_topic} (아래 버튼이 이 주제로 생성)")
+        if _c2.button("✕ 해제", use_container_width=True):
+            st.session_state.single_topic = None
+            st.rerun()
+
+    target_keyword = st.session_state.single_topic or keyword_input
     
     if st.button(f"▶️ '{target_keyword}'(으)로 개별 생성", use_container_width=True):
         if not NAVER_API_KEY_ID or not GEMINI_API_KEY:
@@ -202,7 +221,7 @@ with col_left:
         else:
             with st.status(f"'{target_keyword}' 작성 중...", expanded=True) as status:
                 blog_post_content = None
-                news_items = fetch_latest_news(target_keyword, display=5)
+                news_items = fetch_latest_news(target_keyword, display=5, exclude_titles=st.session_state.recent_titles)
                 if not news_items:
                     st.error("뉴스 검색 실패. 키 상태나 할당량을 확인해주세요.")
                 else:
@@ -210,6 +229,7 @@ with col_left:
                     if not news_items_with_content:
                         st.error("기사 본문 추출 실패.")
                     else:
+                        _remember_titles(news_items_with_content)
                         blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
                         if not blog_post_content:
                             st.error(f"블로그 글 생성 실패: {getattr(synthesize_blog_post, 'last_error', '')}".strip()[:500])
