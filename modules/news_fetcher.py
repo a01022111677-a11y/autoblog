@@ -10,8 +10,11 @@ def fetch_latest_news(keyword, display=5):
         raise ValueError("NCP API 키가 설정되지 않았습니다.")
 
     enc_text = urllib.parse.quote(keyword)
-    # NCP API HUB 검색 API 주소 (최신순 정렬: sort=date)
-    url = f"https://naverapihub.apigw.ntruss.com/search/v1/news?query={enc_text}&display={display}&sort=date"
+    
+    # 1. 정확도순(sim)으로 깊이 있는 기사 수집
+    url_sim = f"https://naverapihub.apigw.ntruss.com/search/v1/news?query={enc_text}&display={display}&sort=sim"
+    # 2. 최신순(date)으로 따끈따끈한 속보 수집
+    url_date = f"https://naverapihub.apigw.ntruss.com/search/v1/news?query={enc_text}&display={display}&sort=date"
     
     headers = {
         "X-NCP-APIGW-API-KEY-ID": NAVER_API_KEY_ID,
@@ -19,19 +22,30 @@ def fetch_latest_news(keyword, display=5):
     }
     
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+        # 두 번의 API 호출 후 결과 합치기
+        resp_sim = requests.get(url_sim, headers=headers).json()
+        resp_date = requests.get(url_date, headers=headers).json()
+        
+        all_items = resp_sim.get("items", []) + resp_date.get("items", [])
         
         news_items = []
-        for item in data.get("items", []):
+        seen_links = set()
+        
+        for item in all_items:
+            # 중복 기사 제거
+            link = item["originallink"] or item["link"]
+            if link in seen_links:
+                continue
+            seen_links.add(link)
+            
             news_items.append({
                 "title": item["title"],
                 "originallink": item["originallink"],
-                "link": item["link"], # 네이버 뉴스 링크 또는 원문 링크
+                "link": item["link"],
                 "description": item["description"],
                 "pubDate": item["pubDate"]
             })
+            
         return news_items
     except Exception as e:
         print(f"[News Fetcher] 뉴스 수집 중 오류 발생: {e}")
