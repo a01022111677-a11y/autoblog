@@ -8,7 +8,6 @@ import json
 # 모듈 임포트
 from config import (
     NAVER_API_KEY_ID, NAVER_API_KEY, GEMINI_API_KEY, SEARCH_KEYWORD,
-    NAVER_CLIENT_ID, NAVER_CLIENT_SECRET,
     TOSS_ACCESS_KEY, TOSS_SECRET_KEY, TOSS_PUBLISHER_ID,
     TOSS_PRODUCT_COUNT, TOSS_ENABLED, TOSS_HTTPS_PROXY,
 )
@@ -38,7 +37,6 @@ def _remember_titles(news_items):
 with st.sidebar:
     st.header("🔌 API 연결 상태")
     st.write("🟢 네이버 뉴스" if (NAVER_API_KEY_ID and NAVER_API_KEY) else "🔴 네이버 뉴스 (Secrets 필요)")
-    st.write("🟢 네이버 쇼핑" if (NAVER_CLIENT_ID and NAVER_CLIENT_SECRET) else "⚪ 네이버 쇼핑 (가격비교 미사용)")
     st.write("🟢 Gemini" if GEMINI_API_KEY else "🔴 Gemini (Secrets 필요)")
     if not TOSS_ENABLED:
         st.write("⚪ 토스쇼핑 (미사용)")
@@ -59,15 +57,6 @@ with st.sidebar:
                     st.write(f"🟢 네이버: 정상 ({len(_items)}건)" if _items else "🟡 네이버: 응답 0건 (키/할당량 확인)")
             except Exception as e:
                 st.write(f"🔴 네이버: 실패 ({str(e)[:120]})")
-            try:
-                if not (NAVER_CLIENT_ID and NAVER_CLIENT_SECRET):
-                    st.write("⚪ 쇼핑: 미사용 (가격비교 생략)")
-                else:
-                    from modules.price_compare import get_naver_lowest as _lowest
-                    _sp, _sm = _lowest("생수 500ml", NAVER_CLIENT_ID, NAVER_CLIENT_SECRET)
-                    st.write(f"🟢 쇼핑: 정상 (최저가 {_sp:,}원)" if _sp else "🔴 쇼핑: 응답 0건/실패 (키·앱 상태 확인)")
-            except Exception as e:
-                st.write(f"🔴 쇼핑: 실패 ({str(e)[:150]})")
             try:
                 if not GEMINI_API_KEY:
                     st.write("🔴 Gemini: 키 없음")
@@ -120,14 +109,7 @@ def _attach_toss_footer(blog_content, keyword):
                 publisher_id=TOSS_PUBLISHER_ID,
                 gemini_api_key=GEMINI_API_KEY,
                 count=int(TOSS_PRODUCT_COUNT or 3),
-                naver_client_id=NAVER_CLIENT_ID,
-                naver_client_secret=NAVER_CLIENT_SECRET,
             )
-        if "토스쇼핑 쉐어링크" in new_content and "타사 최저가" not in new_content:
-            if not (NAVER_CLIENT_ID and NAVER_CLIENT_SECRET):
-                st.caption("ℹ️ 네이버 쇼핑 키 없어서 가격비교줄 생략됨 (토스 박스는 정상)")
-            else:
-                st.caption("ℹ️ 네이버 쇼핑 무응답으로 가격비교줄 생략됨 (키/할당량 확인)")
         return new_content
     except Exception as e:
         st.warning(f"토스 상품 삽입 실패 (글은 정상 생성됨): {e}")
