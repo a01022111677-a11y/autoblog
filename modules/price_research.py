@@ -10,6 +10,9 @@
 import json
 import re
 
+# 할당량이 바닥나면(429) 같은 실행에서 남은 상품 호출을 생략해 낭비 방지
+_quota_dead = False
+
 
 def _extract_json(text):
     """펜스 블록 또는 본문에서 lowest_price/mall/url JSON 추출."""
@@ -33,6 +36,9 @@ def research_lowest_price(product_name, gemini_api_key, model="gemini-3.6-flash"
     (lowest_price:int|None, mall:str|None, url:str|None) 반환.
     """
     if not (product_name and gemini_api_key):
+        return (None, None, None)
+    global _quota_dead
+    if _quota_dead:
         return (None, None, None)
     try:
         from google import genai
@@ -65,7 +71,11 @@ def research_lowest_price(product_name, gemini_api_key, model="gemini-3.6-flash"
             return (None, None, None)
         return (price, mall, url)
     except Exception as e:
-        print(f"[PriceResearch] 리서치 실패 ({(product_name or '')[:20]}): {str(e)[:200]}")
+        _msg = str(e)
+        if "429" in _msg or "RESOURCE_EXHAUSTED" in _msg or "quota" in _msg.lower():
+            _quota_dead = True
+            print("[PriceResearch] 할당량 소진 — 남은 상품 리서치 생략")
+        print(f"[PriceResearch] 리서치 실패 ({(product_name or '')[:20]}): {_msg[:200]}")
         return (None, None, None)
 
 
