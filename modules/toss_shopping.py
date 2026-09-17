@@ -324,7 +324,8 @@ def build_product_card(p):
     L = ['<div style="border: 2px solid #0064FF; padding: 14px; border-radius: 12px; text-align: left; margin: 22px auto; max-width: 400px;">']
     L.append('<span style="font-size: 12px; color: #888888;">📢 광고 · 토스쇼핑 베스트</span><br>')
     if thumb:
-        L.append(f'<img src="{thumb}" style="width: 140px; max-width: 140px; height: auto; border-radius: 8px; margin: 8px 0;" /><br>')
+        # Naver 에디터는 style을 날리므로 width 속성 + 인라인 스타일 둘 다 지정
+        L.append(f'<img src="{thumb}" width="140" style="width: 140px; max-width: 140px; height: auto; border-radius: 8px; margin: 8px 0;" /><br>')
     L.append(f"<b>{name}</b><br>")
     if price > 0:
         L.append(f'<span style="font-size: 24px; font-weight: bold; color: #FA622F;">{_fmt_price(price)}</span>')
