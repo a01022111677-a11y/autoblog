@@ -183,11 +183,18 @@ def issue_sharelink(access_key, secret_key, publisher_id, taca_item_id):
     }
 
 
+from collections import deque
+
+# 최근 광고에 쓴 상품 기억 (같은 상품 무한 반복 방지, 프로세스당 최대 30개)
+_recent_product_ids = deque(maxlen=30)
+
+
 def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_key=None):
     """글 문맥(keyword + 본문 앞부분)과 가장 어울리는 상품 top_n개 선정.
 
     1순위: Gemini로 관련도 랭킹 (실패 시 폴백)
     폴백: 상품명 내 키워드 토큰 매칭 + 리뷰수/평점 + 품절 제외
+    공통: 최근 사용 상품 제외 (충분히 남을 때) → 매번 다른 상품 회전
     """
     if not products:
         return []
@@ -196,6 +203,16 @@ def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_
     if not candidates:
         candidates = products
     top_n = max(1, min(top_n, len(candidates)))
+
+    def _exclude_recent(cands):
+        fresh = [p for p in cands if str(p.get("tacaItemId")) not in _recent_product_ids]
+        return fresh if len(fresh) >= top_n else cands
+
+    def _remember(picked):
+        for p in picked:
+            _recent_product_ids.append(str(p.get("tacaItemId")))
+
+    candidates = _exclude_recent(candidates)
 
     # --- Gemini 랭킹 시도 ---
     if gemini_api_key:
@@ -222,6 +239,7 @@ def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_
                 if len(picked) >= top_n:
                     break
             if picked:
+                _remember(picked)
                 return picked
         except Exception as e:
             print(f"[Toss] Gemini 상품 매칭 실패, 폴백 사용: {e}")
@@ -243,7 +261,9 @@ def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_
         return (hit * 10 + pop + rate, (p.get("reviewCount") or 0))
 
     candidates.sort(key=score, reverse=True)
-    return candidates[:top_n]
+    picked = candidates[:top_n]
+    _remember(picked)
+    return picked
 
 
 def get_toss_products_for_blog(keyword, blog_text="", count=3,
@@ -301,10 +321,10 @@ def build_product_card(p):
     score = p.get("reviewScore")
     cnt = p.get("reviewCount") or 0
 
-    L = ['<div style="border: 2px solid #0064FF; padding: 14px; border-radius: 12px; text-align: left; margin: 22px 0;">']
+    L = ['<div style="border: 2px solid #0064FF; padding: 14px; border-radius: 12px; text-align: left; margin: 22px auto; max-width: 400px;">']
     L.append('<span style="font-size: 12px; color: #888888;">📢 광고 · 토스쇼핑 베스트</span><br>')
     if thumb:
-        L.append(f'<img src="{thumb}" width="160" style="border-radius: 8px; margin: 8px 0;" /><br>')
+        L.append(f'<img src="{thumb}" style="width: 140px; max-width: 140px; height: auto; border-radius: 8px; margin: 8px 0;" /><br>')
     L.append(f"<b>{name}</b><br>")
     if price > 0:
         L.append(f'<span style="font-size: 24px; font-weight: bold; color: #FA622F;">{_fmt_price(price)}</span>')
