@@ -1,16 +1,18 @@
 from google import genai
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEY as _CFG_GEMINI
 import re
 
-def synthesize_blog_post(news_items, keyword):
+def synthesize_blog_post(news_items, keyword, api_key=None):
     """
     여러 뉴스 본문을 종합하여 하나의 블로그 포스트(Markdown 포맷)로 작성합니다.
+    api_key가 주어지면 사이드바 입력값을 우선 사용 (Streamlit Cloud 대응).
     """
-    if not GEMINI_API_KEY:
+    gemini_key = (api_key or _CFG_GEMINI or "").strip() if isinstance((api_key or _CFG_GEMINI), str) else (api_key or _CFG_GEMINI)
+    if not gemini_key:
         raise ValueError("Gemini API 키가 설정되지 않았습니다.")
         
     # 새로운 최신 Google GenAI 클라이언트 초기화
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=gemini_key)
     
     # 프롬프트에 넣을 소스 텍스트 및 여러 장의 이미지 준비
     source_texts = ""
@@ -65,6 +67,7 @@ def synthesize_blog_post(news_items, keyword):
    - 말투는 전문가처럼 딱딱하게 쓰지 말고 이웃에게 이야기하듯 아주 친근하고 호들갑스러운 '해요체'를 사용하세요.
 8. 마무리 인사: 카레만의 친근한 마무리 인사와 함께 댓글/공감을 유도하세요.
 9. 해시태그: 글의 맨 마지막(마무리 인사 밑)에는 반드시 본문 내용(키워드)과 관련된 **해시태그를 정확히 10개** 작성해주세요. (예시: #키워드1 #키워드2 ...)
+10. [중요] 토스쇼핑 링크를 절대 임의로 만들지 마세요. 글 하단에는 시스템이 실제 베스트 상품 쉐어링크 박스를 자동 삽입하므로, 본문에서 가짜 상품 URL(toss.shopping, toss.im 등)을 지어내지 마세요.
 
 [뉴스 기사 소스]
 {source_texts}

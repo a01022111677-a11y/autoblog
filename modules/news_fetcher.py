@@ -1,12 +1,15 @@
 import requests
 import urllib.parse
-from config import NAVER_API_KEY_ID, NAVER_API_KEY
+from config import NAVER_API_KEY_ID as _CFG_ID, NAVER_API_KEY as _CFG_KEY
 
-def fetch_latest_news(keyword, display=5):
+def fetch_latest_news(keyword, display=5, api_key_id=None, api_key=None):
     """
     네이버 뉴스 검색 API를 사용하여 특정 키워드의 최신 뉴스를 가져옵니다.
+    api_key_id/api_key가 주어지면 사이드바 입력값을 우선 사용 (Streamlit Cloud 대응).
     """
-    if not NAVER_API_KEY_ID or not NAVER_API_KEY:
+    key_id = (api_key_id or _CFG_ID or "").strip() if isinstance((api_key_id or _CFG_ID), str) else (api_key_id or _CFG_ID)
+    key = (api_key or _CFG_KEY or "").strip() if isinstance((api_key or _CFG_KEY), str) else (api_key or _CFG_KEY)
+    if not key_id or not key:
         raise ValueError("NCP API 키가 설정되지 않았습니다.")
 
     enc_text = urllib.parse.quote(keyword)
@@ -17,8 +20,8 @@ def fetch_latest_news(keyword, display=5):
     url_date = f"https://naverapihub.apigw.ntruss.com/search/v1/news?query={enc_text}&display={display}&sort=date"
     
     headers = {
-        "X-NCP-APIGW-API-KEY-ID": NAVER_API_KEY_ID,
-        "X-NCP-APIGW-API-KEY": NAVER_API_KEY
+        "X-NCP-APIGW-API-KEY-ID": key_id,
+        "X-NCP-APIGW-API-KEY": key
     }
     
     try:
