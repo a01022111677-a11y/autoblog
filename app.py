@@ -112,6 +112,8 @@ with col_left:
                         st.write(f"✅ '{topic}' 완료!")
                         
                 status.update(label="🎉 8개 카테고리 일괄 생성 완료!", state="complete", expanded=False)
+                if not TOSS_ENABLED:
+                    st.write("ℹ️ 토스쇼핑 키 미등록으로 상품 박스는 생략됐습니다. Secrets 등록 시 다음 글부터 자동 삽입됩니다.")
             st.success("작업 완료! 우측 [보관함]을 확인해주세요!")
 
     st.divider()
@@ -161,6 +163,8 @@ with col_left:
                         "content": blog_post_content
                     })
                     status.update(label="생성 완료!", state="complete", expanded=False)
+                    if not TOSS_ENABLED:
+                        st.caption("ℹ️ 토스쇼핑 키 미등록으로 상품 박스는 생략됐습니다.")
 
 
 # --- 우측: 보관함 영역 ---
