@@ -154,7 +154,8 @@ with col_right:
                     
                     <script>
                         const mdText = {safe_text};
-                        const htmlText = marked.parse(mdText);
+                        // 전체 글을 가운데 정렬하기 위해 div 태그로 감싸줌
+                        const htmlText = "<div style='text-align: center;'>" + marked.parse(mdText) + "</div>";
                         
                         document.getElementById('copyBtn_{idx}').addEventListener('click', () => {{
                             const listener = (e) => {{
