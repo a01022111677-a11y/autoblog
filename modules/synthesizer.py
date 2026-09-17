@@ -1,6 +1,18 @@
 from google import genai
-from config import GEMINI_API_KEY as _CFG_GEMINI
+from config import GEMINI_API_KEY as _CFG_GEMINI, GEMINI_MODEL as _CFG_MODEL
 import re
+
+# 1순위 모델 실패 시 순서대로 재시도 (모델별 장애/할당량 대응)
+_FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+
+def _model_chain():
+    chain = []
+    if _CFG_MODEL:
+        chain.append(_CFG_MODEL)
+    for m in _FALLBACK_MODELS:
+        if m not in chain:
+            chain.append(m)
+    return chain
 
 def synthesize_blog_post(news_items, keyword, api_key=None):
     """
@@ -73,13 +85,27 @@ def synthesize_blog_post(news_items, keyword, api_key=None):
 {source_texts}
 """
     
-    try:
-        # 2026년 최신 모델인 gemini-3.6-flash 사용
-        response = client.models.generate_content(
-            model='gemini-3.6-flash', 
-            contents=prompt
-        )
-        return response.text
-    except Exception as e:
-        print(f"[Synthesizer] 블로그 글 생성 중 오류 발생: {e}")
-        return None
+    last_err = ""
+    for model in _model_chain():
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt
+            )
+            text = (response.text or "").strip()
+            if text:
+                synthesize_blog_post.last_error = ""
+                return text
+            last_err = f"{model}: 빈 응답"
+        except Exception as e:
+            last_err = f"{model}: {e}"
+            print(f"[Synthesizer] 블로그 글 생성 실패 ({model}): {e}")
+            continue
+
+    synthesize_blog_post.last_error = last_err or "알 수 없는 오류"
+    print(f"[Synthesizer] 모든 모델 실패: {last_err}")
+    return None
+
+
+# 마지막 실패 원인을 UI에 보여주기 위한 속성
+synthesize_blog_post.last_error = ""

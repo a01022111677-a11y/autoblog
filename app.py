@@ -94,7 +94,7 @@ with col_left:
                     blog_post_content = synthesize_blog_post(news_items_with_content, topic)
 
                     if not blog_post_content:
-                        st.write(f"⚠️ '{topic}' 글 생성 실패 (Gemini 오류). 건너뜁니다.")
+                        st.write(f"⚠️ '{topic}' 글 생성 실패: {getattr(synthesize_blog_post, 'last_error', '')}".strip()[:500])
                         continue
                     
                     if blog_post_content:
@@ -148,7 +148,7 @@ with col_left:
                     else:
                         blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
                         if not blog_post_content:
-                            st.error("블로그 글 생성 실패 (Gemini 오류).")
+                            st.error(f"블로그 글 생성 실패: {getattr(synthesize_blog_post, 'last_error', '')}".strip()[:500])
                 
                 if blog_post_content:
                     blog_post_content = _attach_toss_footer(blog_post_content, target_keyword)
