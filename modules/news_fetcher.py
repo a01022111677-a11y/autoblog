@@ -17,6 +17,7 @@ def fetch_latest_news(keyword, display=5, api_key_id=None, api_key=None, exclude
     key_id = (api_key_id or _CFG_ID or "").strip() if isinstance((api_key_id or _CFG_ID), str) else (api_key_id or _CFG_ID)
     key = (api_key or _CFG_KEY or "").strip() if isinstance((api_key or _CFG_KEY), str) else (api_key or _CFG_KEY)
     if not key_id or not key:
+        fetch_latest_news.last_error = "NCP API 키 미설정"
         raise ValueError("NCP API 키가 설정되지 않았습니다.")
 
     enc_text = urllib.parse.quote(keyword)
@@ -37,6 +38,14 @@ def fetch_latest_news(keyword, display=5, api_key_id=None, api_key=None, exclude
         # 두 번의 API 호출 후 결과 합치기
         resp_sim = requests.get(url_sim, headers=headers).json()
         resp_date = requests.get(url_date, headers=headers).json()
+
+        # 네이버 에러 페이로드는 즉시 노출 (빈 결과로 뭉개지 않게)
+        for _resp in (resp_sim, resp_date):
+            if isinstance(_resp, dict) and "error" in _resp:
+                _err = _resp["error"] or {}
+                raise RuntimeError(
+                    f"네이버 API 오류 { _err.get('errorCode', '')}: {_err.get('message', '')}".strip()
+                )
         
         all_items = resp_sim.get("items", []) + resp_date.get("items", [])
         
@@ -68,8 +77,16 @@ def fetch_latest_news(keyword, display=5, api_key_id=None, api_key=None, exclude
         # 후보가 많으면 랜덤 샘플링 (매번 다른 조합)
         if len(news_items) > display:
             news_items = random.sample(news_items, display)
-            
+
+        if not news_items:
+            fetch_latest_news.last_error = "검색 응답 0건 (할당량/키 권한 확인)"
+        else:
+            fetch_latest_news.last_error = ""
         return news_items
     except Exception as e:
+        fetch_latest_news.last_error = str(e)[:300]
         print(f"[News Fetcher] 뉴스 수집 중 오류 발생: {e}")
         return []
+
+
+fetch_latest_news.last_error = ""

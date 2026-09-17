@@ -154,7 +154,7 @@ with col_left:
                     
                     news_items = fetch_latest_news(topic, display=5, exclude_titles=st.session_state.recent_titles)
                     if not news_items: 
-                        st.write(f"⚠️ '{topic}' 뉴스 검색 실패. 건너뜁니다.")
+                        st.write(f"⚠️ '{topic}' 뉴스 검색 실패: {getattr(fetch_latest_news, 'last_error', '')}".strip()[:400])
                         continue
                          
                     news_items_with_content = extract_contents_from_news_items(news_items)
@@ -222,7 +222,7 @@ with col_left:
                 blog_post_content = None
                 news_items = fetch_latest_news(target_keyword, display=5, exclude_titles=st.session_state.recent_titles)
                 if not news_items:
-                    st.error("뉴스 검색 실패. 키 상태나 할당량을 확인해주세요.")
+                    st.error(f"뉴스 검색 실패: {getattr(fetch_latest_news, 'last_error', '')}".strip()[:400])
                 else:
                     news_items_with_content = extract_contents_from_news_items(news_items)
                     if not news_items_with_content:
