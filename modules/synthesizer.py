@@ -44,9 +44,9 @@ def synthesize_blog_post(news_items, keyword):
 3. 시각적 자료(사진) 적극 활용: 
 {images_instruction}
 **[중요] 만약 위에서 제공된 이미지 URL 개수가 3개 미만일 경우, 글의 내용과 어울리는 고화질 무료 사진을 아래 URL 규칙을 사용해 당신이 직접 생성해서 본문 사이사이에 추가로 끼워 넣으세요!**
-- 이미지 생성 URL 양식: `![사진설명](https://loremflickr.com/800/400/영단어1,영단어2)`
-- 예시 (비트코인 기사일 경우): `![비트코인 차트](https://loremflickr.com/800/400/bitcoin,money)`
-- 예시 (부동산 기사일 경우): `![아파트 전경](https://loremflickr.com/800/400/apartment,building)`
+- 이미지 생성 URL 양식: `![사진설명](https://loremflickr.com/800/400/영단어1,영단어2?lock=임의의숫자)` (주의: 사진이 중복되지 않도록 '임의의숫자' 자리에 1부터 10000 사이의 완전히 랜덤한 숫자를 매번 다르게 적어주세요!)
+- 예시 (비트코인 기사일 경우): `![비트코인 차트](https://loremflickr.com/800/400/bitcoin,money?lock=8372)`
+- 예시 (부동산 기사일 경우): `![아파트 전경](https://loremflickr.com/800/400/apartment,building?lock=1045)`
 4. 핵심 요약 박스: 글 서두(첫 번째 이미지 밑쯤)에 가장 중요한 내용을 3줄로 요약하는 박스를 만듭니다. (마크다운 인용구 `>` 활용)
    예시:
    > 📌 **{keyword} 핵심 3줄 요약**
