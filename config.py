@@ -56,9 +56,17 @@ NAVER_BLOG_TOKEN = _get_key("NAVER_BLOG_TOKEN")
 SEARCH_KEYWORD = _get_key("SEARCH_KEYWORD", "경제")
 
 # Toss Shopping Sharelink Settings (https://sharelink.toss.im)
-TOSS_ACCESS_KEY = _get_key("TOSS_ACCESS_KEY")
-TOSS_SECRET_KEY = _get_key("TOSS_SECRET_KEY")
-TOSS_PUBLISHER_ID = _get_key("TOSS_PUBLISHER_ID")
+# "xxx" 같은 플레이스홀더는 미입력으로 간주 (실제 키를 넣기 전까지 토스 기능 off)
+def _get_toss_key(name):
+    val = _get_key(name, None)
+    if isinstance(val, str) and val.strip().lower() in ("", "xxx", "your-key-here", "changeme"):
+        return None
+    return val
+
+
+TOSS_ACCESS_KEY = _get_toss_key("TOSS_ACCESS_KEY")
+TOSS_SECRET_KEY = _get_toss_key("TOSS_SECRET_KEY")
+TOSS_PUBLISHER_ID = _get_toss_key("TOSS_PUBLISHER_ID")
 TOSS_PRODUCT_COUNT = _get_int("TOSS_PRODUCT_COUNT", 3)
 # 기본은 키 3개가 다 있을 때 자동 삽입. Secrets에 TOSS_ENABLED=false를 넣으면 강제 비활성화.
 TOSS_ENABLED = _get_bool(
