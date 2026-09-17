@@ -35,18 +35,18 @@ def fetch_latest_news(keyword, display=5, api_key_id=None, api_key=None):
         seen_links = set()
         
         for item in all_items:
-            # 중복 기사 제거
-            link = item["originallink"] or item["link"]
-            if link in seen_links:
+            # 중복 기사 제거 (키가 없어도 죽지 않게 .get 사용)
+            link = item.get("originallink") or item.get("link")
+            if not link or link in seen_links:
                 continue
             seen_links.add(link)
             
             news_items.append({
-                "title": item["title"],
-                "originallink": item["originallink"],
-                "link": item["link"],
-                "description": item["description"],
-                "pubDate": item["pubDate"]
+                "title": item.get("title", ""),
+                "originallink": item.get("originallink", ""),
+                "link": item.get("link", ""),
+                "description": item.get("description", ""),
+                "pubDate": item.get("pubDate", "")
             })
             
         return news_items

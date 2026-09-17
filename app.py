@@ -88,9 +88,14 @@ with col_left:
                         
                     news_items_with_content = extract_contents_from_news_items(news_items)
                     if not news_items_with_content: 
+                        st.write(f"⚠️ '{topic}' 본문 추출 실패. 건너뜁니다.")
                         continue
                         
                     blog_post_content = synthesize_blog_post(news_items_with_content, topic)
+
+                    if not blog_post_content:
+                        st.write(f"⚠️ '{topic}' 글 생성 실패 (Gemini 오류). 건너뜁니다.")
+                        continue
                     
                     if blog_post_content:
                         blog_post_content = _attach_toss_footer(blog_post_content, topic)
@@ -132,9 +137,18 @@ with col_left:
             st.error("API 키가 설정되지 않았습니다. 우측 하단 Secrets 설정을 확인해주세요!")
         else:
             with st.status(f"'{target_keyword}' 작성 중...", expanded=True) as status:
+                blog_post_content = None
                 news_items = fetch_latest_news(target_keyword, display=5)
-                news_items_with_content = extract_contents_from_news_items(news_items)
-                blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
+                if not news_items:
+                    st.error("뉴스 검색 실패. 키 상태나 할당량을 확인해주세요.")
+                else:
+                    news_items_with_content = extract_contents_from_news_items(news_items)
+                    if not news_items_with_content:
+                        st.error("기사 본문 추출 실패.")
+                    else:
+                        blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
+                        if not blog_post_content:
+                            st.error("블로그 글 생성 실패 (Gemini 오류).")
                 
                 if blog_post_content:
                     blog_post_content = _attach_toss_footer(blog_post_content, target_keyword)
