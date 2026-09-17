@@ -2,6 +2,7 @@ import requests
 import urllib.parse
 import random
 import re
+import xml.etree.ElementTree as ET
 from config import NAVER_API_KEY_ID as _CFG_ID, NAVER_API_KEY as _CFG_KEY
 
 def _clean_title(t):
@@ -82,11 +83,76 @@ def fetch_latest_news(keyword, display=5, api_key_id=None, api_key=None, exclude
             fetch_latest_news.last_error = "검색 응답 0건 (할당량/키 권한 확인)"
         else:
             fetch_latest_news.last_error = ""
+            fetch_latest_news.last_source = "naver"
         return news_items
     except Exception as e:
         fetch_latest_news.last_error = str(e)[:300]
-        print(f"[News Fetcher] 뉴스 수집 중 오류 발생: {e}")
+        print(f"[News Fetcher] 네이버 수집 중 오류 발생: {e}")
         return []
 
 
+def _fetch_google_rss(keyword, display=5, exclude_titles=None):
+    """Google News RSS 폴백 (키 불필요). 네이버 Hub 장애 시에도 생성 가능."""
+    try:
+        enc = urllib.parse.quote(keyword)
+        url = (f"https://news.google.com/rss/search?q={enc}&hl=ko&gl=KR&ceid=KR:ko")
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        resp.raise_for_status()
+        root = ET.fromstring(resp.content)
+        items = []
+        for it in root.iter("item"):
+            title = (it.findtext("title") or "").strip()
+            link = (it.findtext("link") or "").strip()
+            desc = re.sub(r"<[^>]+>", "", it.findtext("description") or "").strip()
+            pub = (it.findtext("pubDate") or "").strip()
+            if not title or not link:
+                continue
+            # 구글 리다이렉트 추적용 원본도 함께 보관
+            src = ""
+            m = re.search(r"출처[:：]\s*(.+)$", desc)
+            if m:
+                src = m.group(1).strip()
+            items.append({
+                "title": title,
+                "originallink": link,
+                "link": link,
+                "description": (src + " " + desc)[:300] if src else desc[:300],
+                "pubDate": pub,
+                # 구글 리다이렉트는 정적 추출 불가 → 제목+요약을 본문 대용으로 사용
+                "content_hint": f"{title}. {desc[:500]}",
+                "rss": True,
+            })
+            if len(items) >= max(display * 2, 10):
+                break
+        if exclude_titles:
+            _ex = {_clean_title(t) for t in exclude_titles}
+            _fresh = [n for n in items if _clean_title(n.get("title", "")) not in _ex]
+            if len(_fresh) >= display:
+                items = _fresh
+        if len(items) > display:
+            items = random.sample(items, display)
+        if items:
+            fetch_latest_news.last_source = "google-rss"
+            fetch_latest_news.last_error = ""
+        return items
+    except Exception as e:
+        print(f"[News Fetcher] RSS 수집 중 오류 발생: {e}")
+        return []
+
+
+_orig_fetch_latest_news = fetch_latest_news
+
+
+def fetch_latest_news(keyword, display=5, api_key_id=None, api_key=None, exclude_titles=None):
+    """네이버 Hub 우선 → 실패 시 Google News RSS 자동 폴백."""
+    items = _orig_fetch_latest_news(
+        keyword, display=display, api_key_id=api_key_id,
+        api_key=api_key, exclude_titles=exclude_titles)
+    if items:
+        return items
+    print("[News Fetcher] 네이버 실패 → Google RSS 폴백 시도")
+    return _fetch_google_rss(keyword, display=display, exclude_titles=exclude_titles)
+
+
 fetch_latest_news.last_error = ""
+fetch_latest_news.last_source = "naver"

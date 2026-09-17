@@ -31,10 +31,15 @@ def extract_contents_from_news_items(news_items):
         
         print(f"[{item['title']}] 본문 추출 시도 중... ({url_to_parse})")
         content_text, top_image = extract_article_content(url_to_parse)
-        
+
         if content_text:
             item['content'] = content_text
             item['image_url'] = top_image
+            results.append(item)
+        elif item.get("content_hint"):
+            # RSS 폴백: 직접 추출 불가 URL이면 제목+요약을 본문 대용으로 사용
+            item['content'] = item["content_hint"]
+            item['image_url'] = None
             results.append(item)
         
         # 크롤링 차단 방지를 위한 딜레이
