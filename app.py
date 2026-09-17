@@ -221,5 +221,5 @@ with col_right:
                 """
                 components.html(copy_html, height=50)
                 
-                # 내용 미리보기
-                st.markdown(item['content'])
+                # 내용 미리보기 (HTML 박스가 그대로 그려지도록)
+                st.markdown(item['content'], unsafe_allow_html=True)
