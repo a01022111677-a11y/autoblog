@@ -1,7 +1,9 @@
 """네이버 쇼핑 API 가격 비교 모듈.
 
-이미 보유한 NCP API 키 그대로 사용 (추가 발급 불필요):
-  GET https://naverapihub.apigw.ntruss.com/search/v1/shop?query=...&display=5&sort=sim
+쇼핑 검색은 NCP 허브가 아니라 Naver Developers 키로 호출한다:
+  GET https://openapi.naver.com/v1/search/shop.json?query=...&display=5&sort=sim
+  헤더: X-Naver-Client-Id / X-Naver-Client-Secret
+  (developers.naver.com → 애플리케이션 등록 → 검색 API 사용 신청, 무료)
 
 토스 박스에 "타사 최저가 vs 토스" 한 줄을 붙여 토스 상품을 부각시킨다.
 매칭은 상품명 기준이므로 참고용 문구를 함께 둔다.
@@ -23,19 +25,19 @@ def _short_query(name, max_len=30):
     return name[:max_len].strip()
 
 
-def get_naver_lowest(query, api_key_id, api_key, display=5, timeout=10):
+def get_naver_lowest(query, client_id, client_secret, display=5, timeout=10):
     """네이버 쇼핑 최저가 조회. (lprice:int|None, mall:str|None) 반환. 실패 시 (None, None)."""
-    if not (api_key_id and api_key and query):
+    if not (client_id and client_secret and query):
         return (None, None)
     try:
         enc = urllib.parse.quote(_short_query(query))
         url = (
-            "https://naverapihub.apigw.ntruss.com/search/v1/shop"
+            "https://openapi.naver.com/v1/search/shop.json"
             f"?query={enc}&display={max(1, min(display, 10))}&sort=sim"
         )
         resp = requests.get(url, headers={
-            "X-NCP-APIGW-API-KEY-ID": api_key_id,
-            "X-NCP-APIGW-API-KEY": api_key,
+            "X-Naver-Client-Id": client_id,
+            "X-Naver-Client-Secret": client_secret,
         }, timeout=timeout)
         resp.raise_for_status()
         items = resp.json().get("items", []) or []

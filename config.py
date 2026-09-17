@@ -50,6 +50,10 @@ GEMINI_API_KEY = _get_key("GEMINI_API_KEY")
 # 1순위 모델 (Secrets에서 GEMINI_MODEL로 교체 가능, 미지정 시 체인 기본값 사용)
 GEMINI_MODEL = _get_key("GEMINI_MODEL", None)
 
+# Naver Developers (쇼핑 가격비교용, developers.naver.com에서 애플리케이션 등록)
+NAVER_CLIENT_ID = _get_key("NAVER_CLIENT_ID")
+NAVER_CLIENT_SECRET = _get_key("NAVER_CLIENT_SECRET")
+
 # Naver Blog Settings
 NAVER_BLOG_ID = _get_key("NAVER_BLOG_ID")
 NAVER_BLOG_TOKEN = _get_key("NAVER_BLOG_TOKEN")

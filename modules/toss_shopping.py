@@ -338,7 +338,7 @@ def build_toss_footer(products, keyword=""):
 def append_toss_footer(blog_content, keyword="", products=None,
                        access_key=None, secret_key=None, publisher_id=None,
                        gemini_api_key=None, count=3,
-                       naver_key_id=None, naver_key=None):
+                       naver_client_id=None, naver_client_secret=None):
     """blog_content 하단에 토스 박스 추가. products가 주어지면 API 호출 생략.
     naver_key_id/key가 있으면 상품마다 네이버 쇼핑 최저가를 조회해 비교 한 줄을 붙인다."""
     if not blog_content:
@@ -354,12 +354,12 @@ def append_toss_footer(blog_content, keyword="", products=None,
             access_key=access_key, secret_key=secret_key,
             publisher_id=publisher_id, gemini_api_key=gemini_api_key,
         )
-    if products and naver_key_id and naver_key:
+    if products and naver_client_id and naver_client_secret:
         try:
             from modules.price_compare import get_naver_lowest
             for p in products:
                 _np, _mall = get_naver_lowest(
-                    p.get("displayName", ""), naver_key_id, naver_key)
+                    p.get("displayName", ""), naver_client_id, naver_client_secret)
                 p["naver_lowest"] = _np
                 p["naver_mall"] = _mall
         except Exception as e:
