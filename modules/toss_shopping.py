@@ -182,11 +182,37 @@ def issue_sharelink(access_key, secret_key, publisher_id, taca_item_id):
         "originUrl": success.get("originUrl"),
     }
 
-
 from collections import deque
+import json as _json
+import os as _os
 
-# 최근 광고에 쓴 상품 기억 (같은 상품 무한 반복 방지, 프로세스당 최대 30개)
-_recent_product_ids = deque(maxlen=30)
+# 최근 광고 상품 기억 파일 (재시작해도 같은 상품 무한 반복 방지)
+_RECENT_FILE = _os.path.join(
+    _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+    ".toss_recent.json",
+)
+_RECENT_MAX = 30
+
+
+def _load_recent_ids():
+    try:
+        with open(_RECENT_FILE, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+        return [str(x) for x in data] if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _save_recent_ids(ids):
+    try:
+        with open(_RECENT_FILE, "w", encoding="utf-8") as f:
+            _json.dump([str(x) for x in ids[-_RECENT_MAX:]], f)
+    except Exception as e:
+        print(f"[Toss] 최근상품 기록 실패 (무시): {e}")
+
+
+# 최근 광고에 쓴 상품 기억 (같은 상품 무한 반복 방지, 메모리+디스크)
+_recent_product_ids = deque(_load_recent_ids(), maxlen=_RECENT_MAX)
 
 
 def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_key=None):
@@ -211,6 +237,7 @@ def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_
     def _remember(picked):
         for p in picked:
             _recent_product_ids.append(str(p.get("tacaItemId")))
+        _save_recent_ids(list(_recent_product_ids))
 
     candidates = _exclude_recent(candidates)
 

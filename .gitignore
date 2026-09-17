@@ -1,5 +1,6 @@
 # 실제 비밀키 파일은 커밋 금지
 .env
 .streamlit/secrets.toml
+.toss_recent.json
 __pycache__/
 *.pyc
