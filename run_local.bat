@@ -1,6 +1,8 @@
 @echo off
-REM AutoBlog 로컬 실행 (더블클릭)
-REM 최초 1회: pip install -r requirements.txt
+REM AutoBlog local start (double-click). Server runs minimized, browser opens, this window closes.
+REM First time only: pip install -r requirements.txt
 cd /d "%~dp0"
-streamlit run app.py --server.port 8501
-pause
+start "" /min streamlit run app.py --server.port 8501 --server.headless true
+timeout /t 6 /nobreak >nul
+start "" http://localhost:8501
+exit
