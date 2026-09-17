@@ -66,7 +66,13 @@ with st.sidebar:
                     _tname = _titems[0].get("displayName", "")[:25] if _titems else ""
                     st.write(f"🟢 토스: 정상 ({_tname})" if _titems else "🟡 토스: 응답 0건")
             except Exception as e:
-                st.write(f"🔴 토스: 실패 ({str(e)[:150]})")
+                _emsg = str(e)[:200]
+                _hint = ""
+                if "SHARELINK_OPENAPI_ACCESS_DENIED" in _emsg:
+                    _hint = " → 어드민 IP 등록 + 쉐어링크용 키 확인 필요"
+                elif "401" in _emsg or "invalid_token" in _emsg.lower():
+                    _hint = " → 키 재발급 필요"
+                st.write(f"🔴 토스: 실패 ({_emsg}{_hint})")
     st.divider()
     st.info("💡 키 관리는 우측 하단 Secrets에서만. 여긴 상태 표시 전용입니다.")
 
