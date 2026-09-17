@@ -99,6 +99,8 @@ def _attach_toss_footer(blog_content, keyword):
                 publisher_id=TOSS_PUBLISHER_ID,
                 gemini_api_key=GEMINI_API_KEY,
                 count=int(TOSS_PRODUCT_COUNT or 3),
+                naver_key_id=NAVER_API_KEY_ID,
+                naver_key=NAVER_API_KEY,
             )
     except Exception as e:
         st.warning(f"토스 상품 삽입 실패 (글은 정상 생성됨): {e}")

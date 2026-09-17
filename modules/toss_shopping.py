@@ -293,6 +293,11 @@ def build_toss_footer(products, keyword=""):
     )
     title = f"🛒 <b>{keyword} 읽고 많이 찾는 토스쇼핑 베스트템</b>" if keyword else "🛒 <b>토스쇼핑 베스트템</b>"
     lines.append(title + "<br><br>")
+    _has_cmp = False
+    try:
+        from modules.price_compare import compare_line as _cmpline
+    except Exception:
+        _cmpline = None
     for i, p in enumerate(products, 1):
         name = p.get("displayName", "토스쇼핑 상품")[:70]
         price = _fmt_price(p.get("displayPrice"))
@@ -311,8 +316,18 @@ def build_toss_footer(products, keyword=""):
         if thumb:
             lines.append(f'<img src="{thumb}" width="120" style="border-radius:8px;" /><br>')
         lines.append(f"{i}. <b>{name}</b><br>💰 {price_txt}{meta}<br>")
+        if _cmpline:
+            try:
+                _cmp = _cmpline(p.get("displayPrice"), p.get("naver_lowest"), p.get("naver_mall", ""))
+            except Exception:
+                _cmp = ""
+            if _cmp:
+                lines.append(_cmp + "<br>")
+                _has_cmp = True
         lines.append(f'<a href="{url}"><b>👉 토스쇼핑에서 최저가 보러가기</b></a><br><br>')
     lines.append("</div>")
+    if _has_cmp:
+        lines.append("> 🔎 가격 비교는 상품명 기준 참고용이며 옵션·배송비에 따라 다를 수 있어요.")
     lines.append(
         "> 📢 <b>이 포스팅은 토스쇼핑 쉐어링크를 포함하고 있어요.</b> "
         "링크를 통해 구매하시면 카레에게 소정의 수수료가 지급됩니다. (구매자님 추가 비용 없음 🙏)"
@@ -322,19 +337,32 @@ def build_toss_footer(products, keyword=""):
 
 def append_toss_footer(blog_content, keyword="", products=None,
                        access_key=None, secret_key=None, publisher_id=None,
-                       gemini_api_key=None, count=3):
-    """blog_content 하단에 토스 박스 추가. products가 주어지면 API 호출 생략."""
+                       gemini_api_key=None, count=3,
+                       naver_key_id=None, naver_key=None):
+    """blog_content 하단에 토스 박스 추가. products가 주어지면 API 호출 생략.
+    naver_key_id/key가 있으면 상품마다 네이버 쇼핑 최저가를 조회해 비교 한 줄을 붙인다."""
     if not blog_content:
         return blog_content
     if "토스쇼핑 쉐어링크" in blog_content or "toss.im/_m/" in blog_content:
         return blog_content  # 중복 삽입 방지
     if products is None:
-        if not (access_key and secret_key and publisher_id):
-            return blog_content  # 키 없으면 조용히 패스
+        _has_keys = bool(access_key and secret_key and publisher_id)
+        if not (_has_keys or use_relay()):
+            return blog_content  # 키도 중계도 없으면 조용히 패스
         products = get_toss_products_for_blog(
             keyword, blog_text=blog_content, count=count,
             access_key=access_key, secret_key=secret_key,
             publisher_id=publisher_id, gemini_api_key=gemini_api_key,
         )
+    if products and naver_key_id and naver_key:
+        try:
+            from modules.price_compare import get_naver_lowest
+            for p in products:
+                _np, _mall = get_naver_lowest(
+                    p.get("displayName", ""), naver_key_id, naver_key)
+                p["naver_lowest"] = _np
+                p["naver_mall"] = _mall
+        except Exception as e:
+            print(f"[Toss] 가격 비교 생략: {e}")
     footer = build_toss_footer(products, keyword)
     return blog_content + footer if footer else blog_content
