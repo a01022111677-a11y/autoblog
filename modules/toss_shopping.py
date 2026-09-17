@@ -293,6 +293,7 @@ def build_toss_footer(products, keyword=""):
     )
     title = f"🛒 <b>{keyword} 읽고 많이 찾는 토스쇼핑 베스트템</b>" if keyword else "🛒 <b>토스쇼핑 베스트템</b>"
     lines.append(title + "<br><br>")
+    _has_cmp = False
     for i, p in enumerate(products, 1):
         name = p.get("displayName", "토스쇼핑 상품")[:70]
         price = _fmt_price(p.get("displayPrice"))
@@ -311,8 +312,20 @@ def build_toss_footer(products, keyword=""):
         if thumb:
             lines.append(f'<img src="{thumb}" width="120" style="border-radius:8px;" /><br>')
         lines.append(f"{i}. <b>{name}</b><br>💰 {price_txt}{meta}<br>")
+        _cmp = ""
+        if p.get("web_lowest"):
+            try:
+                from modules.price_research import format_compare as _fmt_cmp
+                _cmp = _fmt_cmp(p.get("displayPrice"), p.get("web_lowest"), p.get("web_mall", ""))
+            except Exception:
+                _cmp = ""
+        if _cmp:
+            lines.append(_cmp + "<br>")
+            _has_cmp = True
         lines.append(f'<a href="{url}"><b>👉 토스쇼핑에서 최저가 보러가기</b></a><br><br>')
     lines.append("</div>")
+    if _has_cmp:
+        lines.append("> 🔎 가격 비교는 AI 웹 검색 기준 참고용이며 옵션·배송비·시점에 따라 다를 수 있어요.")
     lines.append(
         "> 📢 <b>이 포스팅은 토스쇼핑 쉐어링크를 포함하고 있어요.</b> "
         "링크를 통해 구매하시면 카레에게 소정의 수수료가 지급됩니다. (구매자님 추가 비용 없음 🙏)"
@@ -337,5 +350,21 @@ def append_toss_footer(blog_content, keyword="", products=None,
             access_key=access_key, secret_key=secret_key,
             publisher_id=publisher_id, gemini_api_key=gemini_api_key,
         )
+    if products and gemini_api_key:
+        # Gemini 웹 그라운딩으로 상품별 온라인 최저가 조사 (실패분은 비교줄 없이 진행)
+        try:
+            from modules.price_research import research_lowest_price
+            from config import GEMINI_MODEL as _model
+            for p in products:
+                if not p.get("displayPrice"):
+                    continue
+                _wp, _wm, _wu = research_lowest_price(
+                    p.get("displayName", ""), gemini_api_key,
+                    model=_model or "gemini-3.6-flash")
+                if _wp:
+                    p["web_lowest"] = _wp
+                    p["web_mall"] = _wm
+        except Exception as e:
+            print(f"[Toss] 가격 리서치 생략: {e}")
     footer = build_toss_footer(products, keyword)
     return blog_content + footer if footer else blog_content
