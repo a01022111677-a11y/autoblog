@@ -1,0 +1,5 @@
+# 실제 비밀키 파일은 커밋 금지
+.env
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
