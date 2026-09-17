@@ -14,7 +14,7 @@ from config import (
 from modules.news_fetcher import fetch_latest_news
 from modules.content_extractor import extract_contents_from_news_items
 from modules.synthesizer import synthesize_blog_post, gemini_model_chain
-from modules.toss_shopping import append_toss_footer, fetch_best_selling
+from modules.toss_shopping import append_toss_footer, fetch_best_selling, use_relay
 
 # 페이지 설정 (와이드 모드로 변경)
 st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="wide")
@@ -30,6 +30,8 @@ with st.sidebar:
     st.write("🟢 Gemini" if GEMINI_API_KEY else "🔴 Gemini (Secrets 필요)")
     if not TOSS_ENABLED:
         st.write("⚪ 토스쇼핑 (미사용)")
+    elif use_relay():
+        st.write("🟢 토스쇼핑 (중계서버 경유)")
     elif TOSS_HTTPS_PROXY:
         st.write("🟢 토스쇼핑 (프록시 경유)")
     else:
@@ -85,7 +87,7 @@ def _attach_toss_footer(blog_content, keyword):
     """토스 설정이 켜져 있으면 베스트상품 박스를 하단에 삽입. 실패해도 원본 반환."""
     if not blog_content or not TOSS_ENABLED:
         return blog_content
-    if not (TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID):
+    if not ((TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID) or use_relay()):
         return blog_content
     try:
         with st.spinner("🛒 글 문맥에 맞는 토스쇼핑 베스트상품 찾는 중..."):

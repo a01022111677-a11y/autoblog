@@ -73,8 +73,13 @@ TOSS_PRODUCT_COUNT = _get_int("TOSS_PRODUCT_COUNT", 3)
 # 고정IP 프록시 (Streamlit Cloud처럼 출발지 IP 등록이 불가한 환경용)
 # 예: TOSS_HTTPS_PROXY = "http://user:pass@proxy-host:8080" (미설정 시 직접 연결)
 TOSS_HTTPS_PROXY = _get_key("TOSS_HTTPS_PROXY", None)
-# 기본은 키 3개가 다 있을 때 자동 삽입. Secrets에 TOSS_ENABLED=false를 넣으면 강제 비활성화.
+
+# 중계서버 모드 (집PC 등 고정IP 머신에서 relay_server.py 실행 시)
+# Cloud Secrets에만 넣으면 된다 (토스 키는 중계서버 쪽 .env에만 있으면 됨)
+TOSS_RELAY_URL = _get_key("TOSS_RELAY_URL", None)
+TOSS_RELAY_SECRET = _get_key("TOSS_RELAY_SECRET", None)
+# 키 3종 OR 중계서버 설정이 있으면 활성화. Secrets에 TOSS_ENABLED=false를 넣으면 강제 비활성화.
 TOSS_ENABLED = _get_bool(
     "TOSS_ENABLED",
-    bool(TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID),
+    bool((TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID) or TOSS_RELAY_URL),
 )

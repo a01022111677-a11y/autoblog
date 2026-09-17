@@ -6,10 +6,15 @@
   3. POST https://sharelink.toss.im/openapi/links {tacaItemId, publisherId} -> shortUrl
   4. shortUrl + 상품정보를 블로그 하단 박스로 삽입 (반드시 shortUrl 사용)
 
-필요 환경변수 (.env):
-  TOSS_ACCESS_KEY    (Access Key)
-  TOSS_SECRET_KEY    (Secret Key)
-  TOSS_PUBLISHER_ID  (퍼블리셔 UUID)
+ 필요 환경변수 (.env):
+   TOSS_ACCESS_KEY    (Access Key)
+   TOSS_SECRET_KEY    (Secret Key)
+   TOSS_PUBLISHER_ID  (퍼블리셔 UUID)
+
+ Cloud 등 출발지 IP 등록이 불가한 환경에서는 집PC 중계서버 경유 가능:
+   TOSS_RELAY_URL     (예: https://xxx.trycloudflare.com)
+   TOSS_RELAY_SECRET  (중계서버 RELAY_SECRET과 동일한 값)
+   → 설정 시 아래 함수들이 토스 직접 호출 대신 중계서버로 요청한다.
 """
 import time
 import requests
@@ -33,6 +38,42 @@ def _proxies():
     if not url:
         return None
     return {"http": url, "https": url}
+
+
+def _relay_cfg():
+    """중계서버 설정. (url, secret) 또는 None."""
+    try:
+        from config import TOSS_RELAY_URL, TOSS_RELAY_SECRET
+    except Exception:
+        return None
+    url = (TOSS_RELAY_URL or "").strip().rstrip("/")
+    if not url:
+        return None
+    return (url, TOSS_RELAY_SECRET or "")
+
+
+def use_relay():
+    """중계 모드 여부 (UI 표시용)."""
+    return _relay_cfg() is not None
+
+
+def _relay_call(method, path, params=None, payload=None, timeout=40):
+    base, secret = _relay_cfg()
+    resp = requests.request(
+        method, base + path, params=params, json=payload,
+        headers={"X-Relay-Secret": secret}, timeout=timeout,
+    )
+    if resp.status_code == 401:
+        raise RuntimeError("중계서버 인증 실패 (TOSS_RELAY_SECRET 확인 + 중계서버 실행 여부 확인)")
+    if resp.status_code != 200:
+        raise RuntimeError(f"중계서버 오류 {resp.status_code}: {resp.text[:200]}")
+    try:
+        data = resp.json()
+    except Exception:
+        raise RuntimeError(f"중계서버 응답 파싱 실패: {resp.text[:200]}")
+    if not data.get("ok"):
+        raise RuntimeError(f"중계 실패: {data.get('error', '')[:300]}")
+    return data.get("data")
 
 
 def _get_access_token(access_key, secret_key):
@@ -68,6 +109,8 @@ def _get_access_token(access_key, secret_key):
 
 def fetch_best_selling(access_key, secret_key, size=30):
     """카테고리 구분 없이 지금 많이 팔리는 상품 목록 조회."""
+    if _relay_cfg():
+        return _relay_call("GET", "/toss/best-selling", params={"size": max(1, min(size, 100))}) or []
     token = _get_access_token(access_key, secret_key)
     resp = requests.get(
         f"{API_BASE}/products/best-selling",
@@ -85,6 +128,12 @@ def fetch_best_selling(access_key, secret_key, size=30):
 
 def fetch_today_deals(access_key, secret_key, size=10):
     """하루특가 상품 조회 (없으면 빈 리스트)."""
+    if _relay_cfg():
+        try:
+            return _relay_call("GET", "/toss/today-deals", params={"size": max(1, min(size, 30))}) or []
+        except Exception as e:
+            print(f"[Toss] 하루특가 조회 실패 (무시): {e}")
+            return []
     try:
         token = _get_access_token(access_key, secret_key)
         resp = requests.get(
@@ -105,7 +154,14 @@ def fetch_today_deals(access_key, secret_key, size=10):
 
 
 def issue_sharelink(access_key, secret_key, publisher_id, taca_item_id):
-    """tacaItemId + publisherId 로 추적 가능한 shortUrl 발급. 반드시 이 URL을 게시해야 수익 집계됨."""
+    """tacaItemId + publisherId 로 추적 가능한 shortUrl 발급. 반드시 이 URL을 게시해야 수익 집계됨.
+    중계 모드에서는 중계서버의 키/UUID로 발급하므로 Cloud에 키가 없어도 된다."""
+    if _relay_cfg():
+        data = _relay_call("POST", "/toss/links",
+                           payload={"tacaItemId": int(taca_item_id), "publisherId": publisher_id}) or {}
+        if not data.get("shortUrl"):
+            raise RuntimeError(f"쉐어링크 발급 실패: {data}")
+        return {"shortUrl": data.get("shortUrl"), "originUrl": data.get("originUrl")}
     if not publisher_id:
         raise ValueError("TOSS_PUBLISHER_ID가 없습니다.")
     token = _get_access_token(access_key, secret_key)
