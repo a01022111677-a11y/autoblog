@@ -246,7 +246,7 @@ def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_
                 f"아래 토스쇼핑 베스트 상품 목록 중, 블로그 독자가 자연스럽게 클릭할 만한 "
                 f"관련 상품 {top_n}개를 번호만 콤마로 답하세요. (예: 2,5,7)\n{listing}"
             )
-            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            resp = client.models.generate_content(model="gemini-flash-latest", contents=prompt)
             nums = [int(n) for n in re.findall(r"\d+", resp.text or "") if int(n) < len(candidates)]
             picked = []
             for n in nums:
@@ -488,7 +488,7 @@ def append_toss_footer(blog_content, keyword="", products=None,
                     continue
                 _wp, _wm, _wu = research_lowest_price(
                     p.get("displayName", ""), gemini_api_key,
-                    model=_model or "gemini-2.5-flash")
+                    model=_model or "gemini-flash-latest")
                 if _wp:
                     p["web_lowest"] = _wp
                     p["web_mall"] = _wm

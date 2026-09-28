@@ -2,12 +2,12 @@ from google import genai
 from config import GEMINI_API_KEY as _CFG_GEMINI, GEMINI_MODEL as _CFG_MODEL
 import re
 
-# 1순위 모델 실패 시 순서대로 재시도 (구글 지원 최신 모델)
-_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash-lite"]
+# 1순위 모델 실패 시 순서대로 재시도 (구글 지원 최신 활성 모델)
+_FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-flash-lite-latest", "gemini-3.5-flash-lite"]
 
 def _model_chain():
     chain = []
-    if _CFG_MODEL and _CFG_MODEL not in ("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"):
+    if _CFG_MODEL and _CFG_MODEL not in ("gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"):
         chain.append(_CFG_MODEL)
     for m in _FALLBACK_MODELS:
         if m not in chain:
