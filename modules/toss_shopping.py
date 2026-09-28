@@ -4,20 +4,19 @@
   1. POST https://oauth2.cert.toss.im/token (client_credentials) -> access_token
   2. GET  https://sharelink.toss.im/openapi/products/best-selling?size=30
   3. POST https://sharelink.toss.im/openapi/links {tacaItemId, publisherId} -> shortUrl
-  4. shortUrl + 상품정보를 블로그 하단 박스로 삽입 (반드시 shortUrl 사용)
+  4. shortUrl + 상품정보를 블로그 본문 사이사이에 1개씩 분산 삽입 (반드시 shortUrl 사용)
 
- 필요 환경변수 (.env):
+ 필요 환경변수 (.env / Streamlit Secrets):
    TOSS_ACCESS_KEY    (Access Key)
    TOSS_SECRET_KEY    (Secret Key)
    TOSS_PUBLISHER_ID  (퍼블리셔 UUID)
-
- Cloud 등 출발지 IP 등록이 불가한 환경에서는 집PC 중계서버 경유 가능:
-   TOSS_RELAY_URL     (예: https://xxx.trycloudflare.com)
-   TOSS_RELAY_SECRET  (중계서버 RELAY_SECRET과 동일한 값)
-   → 설정 시 아래 함수들이 토스 직접 호출 대신 중계서버로 요청한다.
 """
 import time
 import requests
+import re
+from collections import deque
+import json as _json
+import os as _os
 
 TOKEN_URL = "https://oauth2.cert.toss.im/token"
 API_BASE = "https://sharelink.toss.im/openapi"
@@ -26,10 +25,7 @@ _token_cache = {"token": None, "expires_at": 0}
 
 
 def _proxies():
-    """고정IP 프록시 경유 설정 (Streamlit Cloud처럼 IP 등록이 불가한 환경용).
-    Secrets/env에 TOSS_HTTPS_PROXY="http://user:pass@host:port" 형식으로 넣으면 사용.
-    미설정 시 None (직접 연결).
-    """
+    """고정IP 프록시 경유 설정 (Streamlit Cloud처럼 IP 등록이 불가한 환경용)."""
     try:
         from config import TOSS_HTTPS_PROXY
         url = (TOSS_HTTPS_PROXY or "").strip()
@@ -154,8 +150,7 @@ def fetch_today_deals(access_key, secret_key, size=10):
 
 
 def issue_sharelink(access_key, secret_key, publisher_id, taca_item_id):
-    """tacaItemId + publisherId 로 추적 가능한 shortUrl 발급. 반드시 이 URL을 게시해야 수익 집계됨.
-    중계 모드에서는 중계서버의 키/UUID로 발급하므로 Cloud에 키가 없어도 된다."""
+    """tacaItemId + publisherId 로 추적 가능한 shortUrl 발급."""
     if _relay_cfg():
         data = _relay_call("POST", "/toss/links",
                            payload={"tacaItemId": int(taca_item_id), "publisherId": publisher_id}) or {}
@@ -182,9 +177,6 @@ def issue_sharelink(access_key, secret_key, publisher_id, taca_item_id):
         "originUrl": success.get("originUrl"),
     }
 
-from collections import deque
-import json as _json
-import os as _os
 
 # 최근 광고 상품 기억 파일 (재시작해도 같은 상품 무한 반복 방지)
 _RECENT_FILE = _os.path.join(
@@ -217,10 +209,8 @@ _recent_product_ids = deque(_load_recent_ids(), maxlen=_RECENT_MAX)
 
 def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_key=None):
     """글 문맥(keyword + 본문 앞부분)과 가장 어울리는 상품 top_n개 선정.
-
     1순위: Gemini로 관련도 랭킹 (실패 시 폴백)
     폴백: 상품명 내 키워드 토큰 매칭 + 리뷰수/평점 + 품절 제외
-    공통: 최근 사용 상품 제외 (충분히 남을 때) → 매번 다른 상품 회전
     """
     if not products:
         return []
@@ -256,8 +246,7 @@ def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_
                 f"아래 토스쇼핑 베스트 상품 목록 중, 블로그 독자가 자연스럽게 클릭할 만한 "
                 f"관련 상품 {top_n}개를 번호만 콤마로 답하세요. (예: 2,5,7)\n{listing}"
             )
-            resp = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-            import re
+            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
             nums = [int(n) for n in re.findall(r"\d+", resp.text or "") if int(n) < len(candidates)]
             picked = []
             for n in nums:
@@ -272,16 +261,13 @@ def pick_relevant_products(keyword, products, top_n=3, blog_text="", gemini_api_
             print(f"[Toss] Gemini 상품 매칭 실패, 폴백 사용: {e}")
 
     # --- 폴백: 키워드 토큰 매칭 ---
-    import re
     tokens = [t for t in re.split(r"\s+", keyword or "") if len(t) >= 2]
-    # '핫이슈' 같은 공통어 제거
     stop = {"핫이슈", "요약", "관련", "최신", "오늘", "속보"}
     tokens = [t for t in tokens if t not in stop]
 
     def score(p):
         name = p.get("displayName", "") or ""
         hit = sum(1 for t in tokens if t in name)
-        # 리뷰 많은 순 가산 (로그 스케일)
         import math
         pop = math.log10((p.get("reviewCount") or 0) + 10)
         rate = (p.get("reviewScore") or 0) / 5.0
@@ -299,7 +285,6 @@ def get_toss_products_for_blog(keyword, blog_text="", count=3,
     """베스트 조회 -> 문맥 매칭 -> 쉐어링크 발급까지 한번에. 실패해도 예외 대신 빈 리스트."""
     try:
         products = fetch_best_selling(access_key, secret_key, size=30)
-        # 하루특가도 섞어서 선택지 확대 (선택, 실패 무시)
         deals = fetch_today_deals(access_key, secret_key, size=10)
         seen = {p.get("tacaItemId") for p in products}
         for d in deals:
@@ -331,9 +316,13 @@ def _fmt_price(n):
 
 def build_product_card(p):
     """상품 1개짜리 낱장 광고 카드 (본문 사이사이에 1개씩 삽입용).
-    작은 사진 + 왕큰 가격 + 취소선 정가 + 구매욕구 문구. 가짜 스펙은 절대 안 넣고
-    실제 필드(가격/할인율/리뷰/비교가)만으로 구성한다."""
-    name = p.get("displayName", "토스쇼핑 상품")[:60]
+    - 사진: 100~110px로 아담하고 깔끔하게 축소
+    - 가격: 24~26px 대형 폰트로 시원하게 강조
+    - 할인 전 가격: <s>취소선</s>으로 긋고 '❌ 정가 아닙니다' 세일즈 카피 적용
+    - 할인율: 빨간색 강조 배지
+    - 리뷰수/평점: 실구매자 인증 카피
+    - 최저가 바로가기 버튼: 클릭 유도형 블루 버튼"""
+    name = p.get("displayName", "토스쇼핑 추천 상품")[:60]
     url = p.get("shortUrl") or p.get("productUrl") or "https://sharelink.toss.im"
     thumb = p.get("thumbnailUrl")
     try:
@@ -348,26 +337,39 @@ def build_product_card(p):
     score = p.get("reviewScore")
     cnt = p.get("reviewCount") or 0
 
-    L = ['<div style="border: 2px solid #0064FF; padding: 14px; border-radius: 12px; text-align: left; margin: 22px auto; max-width: 400px;">']
-    L.append('<span style="font-size: 12px; color: #888888;">📢 광고 · 토스쇼핑 베스트</span><br>')
+    L = ['<div style="border: 2px solid #0064FF; padding: 16px; border-radius: 12px; text-align: left; margin: 24px auto; max-width: 420px; background-color: rgba(0, 100, 255, 0.02);">']
+    L.append('<div style="font-size: 12px; color: #0064FF; font-weight: bold; margin-bottom: 6px;">🛒 [카레의 토스쇼핑 핫딜 추천]</div>')
+    
     if thumb:
-        # Naver 에디터는 style을 날리므로 width 속성 + 인라인 스타일 둘 다 지정
-        L.append(f'<img src="{thumb}" width="140" style="width: 140px; max-width: 140px; height: auto; border-radius: 8px; margin: 8px 0;" /><br>')
-    L.append(f"<b>{name}</b><br>")
-    if price > 0:
-        L.append(f'<span style="font-size: 24px; font-weight: bold; color: #FA622F;">{_fmt_price(price)}</span>')
+        # 사진 크기 대폭 축소 (100px) 및 중앙 배치
+        L.append(f'<div style="text-align: center; margin: 6px 0;"><img src="{thumb}" width="100" style="width: 100px; max-width: 100px; height: auto; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);" /></div>')
+    
+    L.append(f'<div style="font-size: 15px; font-weight: bold; margin-bottom: 6px; line-height: 1.4;">📦 {name}</div>')
+    
+    # 가격 및 취소선 영역
     if orig > 0 and price > 0 and orig > price:
-        L.append(f' <s style="color: #999999; font-size: 14px;">{_fmt_price(orig)}</s>')
+        L.append(f'<div style="margin: 4px 0;">')
+        L.append(f'  <span style="color: #888888; font-size: 14px; text-decoration: line-through;">기존 정가 {_fmt_price(orig)}</span>')
         if disc:
-            L.append(f' <span style="font-size: 14px; font-weight: bold; color: #E02020;">{disc}%🔻</span>')
-        L.append(f'<br>⏰ 지금 {disc}% 할인 중! {_fmt_price(orig)}은 옛말이에요<br>' if disc
-                 else f'<br>❌ {_fmt_price(orig)} 아닙니다<br>')
+            L.append(f'  <span style="background-color: #ffe3e3; color: #E02020; font-weight: 800; font-size: 13px; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">{disc}% 🔻 특가할인</span>')
+        L.append(f'</div>')
+        L.append(f'<div style="margin: 4px 0;">')
+        L.append(f'  <span style="font-size: 13px; color: #444444; font-weight: bold;">🔥 오늘만 특가 👉 </span>')
+        L.append(f'  <span style="font-size: 26px; font-weight: 900; color: #E02020; letter-spacing: -0.5px;">{_fmt_price(price)}</span>')
+        L.append(f'</div>')
     elif price > 0:
-        L.append('<br>')
+        L.append(f'<div style="margin: 4px 0;">')
+        L.append(f'  <span style="font-size: 13px; color: #444444; font-weight: bold;">🔥 단독 특가 👉 </span>')
+        L.append(f'  <span style="font-size: 26px; font-weight: 900; color: #E02020; letter-spacing: -0.5px;">{_fmt_price(price)}</span>')
+        L.append(f'</div>')
+
+    # 리뷰 및 평점 카피
     if score and cnt:
-        L.append(f"⭐ {score} · 리뷰 {cnt:,}개가 증명하는 베스트<br>")
+        L.append(f'<div style="font-size: 13px; color: #555555; margin: 6px 0;">⭐ 실구매 평점 <b>{score}점</b> · 리뷰 <b>{cnt:,}개</b> 돌파 대란템!</div>')
     elif cnt:
-        L.append(f"리뷰 {cnt:,}개 돌파한 베스트<br>")
+        L.append(f'<div style="font-size: 13px; color: #555555; margin: 6px 0;">⭐ 실구매 리뷰 <b>{cnt:,}개</b> 돌파 인기템!</div>')
+
+    # 웹 최저가 비교선 (있을 때만)
     _cmp = ""
     if p.get("web_lowest"):
         try:
@@ -376,10 +378,13 @@ def build_product_card(p):
         except Exception:
             _cmp = ""
     if _cmp:
-        L.append(_cmp + "<br>")
-    L.append(f'<a href="{url}" style="display: inline-block; background-color: #0064FF; color: #ffffff; '
-             f'padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 6px;">'
-             f'👉 이 가격에 득템하러 가기</a>')
+        L.append(f'<div style="font-size: 12px; color: #2b8a3e; margin: 4px 0;">{_cmp}</div>')
+
+    # 구매 버튼 (눈에 띄는 파란색 버튼)
+    L.append(f'<div style="text-align: center; margin-top: 12px;">')
+    L.append(f'  <a href="{url}" style="display: inline-block; background-color: #0064FF; color: #ffffff; padding: 10px 22px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(0,100,255,0.3);">'
+             f'👉 토스쇼핑에서 할인가로 득템하기</a>')
+    L.append(f'</div>')
     L.append("</div>")
     return "\n".join(L)
 
@@ -388,7 +393,7 @@ def build_disclosure(has_compare=False):
     """글 맨 끝 대가성 문구 (필수)."""
     lines = ["\n\n---\n"]
     if has_compare:
-        lines.append("> 🔎 가격 비교는 AI 웹 검색 기준 참고용이며 옵션·배송비·시점에 따라 다를 수 있어요.")
+        lines.append("> 🔎 가격 비교는 AI 웹 검색 기준 참고용이며 옵션·배송비·시점에 따라 다를 수 있어요.\n")
     lines.append(
         "> 📢 <b>이 포스팅은 토스쇼핑 쉐어링크를 포함하고 있어요.</b> "
         "링크를 통해 구매하시면 카레에게 소정의 수수료가 지급됩니다. (구매자님 추가 비용 없음 🙏)"
@@ -398,9 +403,15 @@ def build_disclosure(has_compare=False):
 
 def insert_inline_ads(blog_content, products):
     """본문 속 [[TOSS_AD_1]]… 토큰 자리에 상품 카드를 1개씩 치환.
-    반환: (치환된 본문, 토큰에 못 들어간 남은 상품 리스트)"""
-    leftover = []
+    토큰이 없거나 누락된 경우, 본문 문단/소제목 사이에 1개씩 고르게 분산 삽입!
+    (광고가 뭉치지 않고 본문 사이사이에 1개씩 자연스럽게 분배)"""
+    if not products:
+        return blog_content, []
+
     content = blog_content
+    leftover = []
+    
+    # 1. AI가 명시적으로 넣은 토큰 먼저 치환
     for i, p in enumerate(products, 1):
         placed = False
         for token in (f"[[TOSS_AD_{i}]]", f"`[[TOSS_AD_{i}]]`"):
@@ -409,13 +420,48 @@ def insert_inline_ads(blog_content, products):
                 placed = True
         if not placed:
             leftover.append(p)
+
+    # 2. 토큰이 없어서 남은 상품이 있다면, 본문 사이사이에 1개씩 고르게 분산 배치
+    if leftover:
+        # 소제목 태그(<h3 또는 ##) 기준으로 본문 나누기 시도
+        parts = re.split(r'(\n(?:<h3|##)\b[^\n]*\n)', content)
+        if len(parts) > 1:
+            new_content = ""
+            ad_idx = 0
+            for part in parts:
+                new_content += part
+                if (part.startswith("\n<h3") or part.startswith("\n##")) and ad_idx < len(leftover):
+                    new_content += "\n\n" + build_product_card(leftover[ad_idx]) + "\n\n"
+                    ad_idx += 1
+            while ad_idx < len(leftover):
+                new_content += "\n\n" + build_product_card(leftover[ad_idx]) + "\n\n"
+                ad_idx += 1
+            content = new_content
+            leftover = []
+        else:
+            # 소제목이 없을 경우 단락별로 1개씩 분산 배치
+            paragraphs = content.split("\n\n")
+            step = max(1, len(paragraphs) // (len(leftover) + 1))
+            new_paras = []
+            ad_idx = 0
+            for i, p_text in enumerate(paragraphs):
+                new_paras.append(p_text)
+                if i > 0 and i % step == 0 and ad_idx < len(leftover):
+                    new_paras.append(build_product_card(leftover[ad_idx]))
+                    ad_idx += 1
+            while ad_idx < len(leftover):
+                new_paras.append(build_product_card(leftover[ad_idx]))
+                ad_idx += 1
+            content = "\n\n".join(new_paras)
+            leftover = []
+
     return content, leftover
 
 
 def append_toss_footer(blog_content, keyword="", products=None,
                        access_key=None, secret_key=None, publisher_id=None,
                        gemini_api_key=None, count=3):
-    """토스 광고 삽입 (본문 사이사이 1개씩 + 남은 건 하단 + 대가성 문구).
+    """토스 광고 삽입 (본문 사이사이 1개씩 고르게 분산 배치 + 대가성 문구).
     products가 주어지면 API 호출 생략."""
     if not blog_content:
         return blog_content
@@ -442,7 +488,7 @@ def append_toss_footer(blog_content, keyword="", products=None,
                     continue
                 _wp, _wm, _wu = research_lowest_price(
                     p.get("displayName", ""), gemini_api_key,
-                    model=_model or "gemini-3.6-flash")
+                    model=_model or "gemini-2.5-flash")
                 if _wp:
                     p["web_lowest"] = _wp
                     p["web_mall"] = _wm
@@ -450,9 +496,7 @@ def append_toss_footer(blog_content, keyword="", products=None,
             print(f"[Toss] 가격 리서치 생략: {e}")
     content, leftover = insert_inline_ads(blog_content, products)
     has_compare = any(p.get("web_lowest") for p in products)
-    # 토큰에 못 들어간 상품은 하단에 낱장 카드로 폴백
     for p in leftover:
         content += "\n\n" + build_product_card(p)
-    if leftover or content != blog_content:
-        content += build_disclosure(has_compare=has_compare)
+    content += build_disclosure(has_compare=has_compare)
     return content

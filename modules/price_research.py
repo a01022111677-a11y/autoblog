@@ -31,7 +31,7 @@ def _extract_json(text):
         return {}
 
 
-def research_lowest_price(product_name, gemini_api_key, model="gemini-3.6-flash", timeout_note=""):
+def research_lowest_price(product_name, gemini_api_key, model="gemini-2.5-flash", timeout_note=""):
     """웹 검색 그라운딩으로 동일 상품 온라인 최저가 조사.
     (lowest_price:int|None, mall:str|None, url:str|None) 반환.
     """
