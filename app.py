@@ -6,17 +6,12 @@ import os
 import json
 
 # 모듈 임포트
-from config import (
-    NAVER_API_KEY_ID, NAVER_API_KEY, GEMINI_API_KEY, SEARCH_KEYWORD,
-    TOSS_ACCESS_KEY, TOSS_SECRET_KEY, TOSS_PUBLISHER_ID,
-    TOSS_PRODUCT_COUNT, TOSS_ENABLED, TOSS_HTTPS_PROXY,
-)
+from config import NAVER_API_KEY_ID, NAVER_API_KEY, GEMINI_API_KEY, SEARCH_KEYWORD
 from modules.news_fetcher import fetch_latest_news
 from modules.content_extractor import extract_contents_from_news_items
 from modules.synthesizer import synthesize_blog_post, gemini_model_chain
-from modules.toss_shopping import append_toss_footer, fetch_best_selling, use_relay
 
-# 페이지 설정 (와이드 모드로 변경)
+# 페이지 설정 (와이드 모드)
 st.set_page_config(page_title="AutoBlog Web", page_icon="📝", layout="wide")
 
 # 세션 상태(보관함) 초기화
@@ -33,19 +28,12 @@ def _remember_titles(news_items):
             st.session_state.recent_titles.append(_t)
     st.session_state.recent_titles = st.session_state.recent_titles[-40:]
 
+
 # 좌측 API 연결 상태 뷰어 (키 값 노출 없음 — 상태 표시 전용)
 with st.sidebar:
     st.header("🔌 API 연결 상태")
     st.write("🟢 네이버 뉴스" if (NAVER_API_KEY_ID and NAVER_API_KEY) else "🔴 네이버 뉴스 (Secrets 필요)")
     st.write("🟢 Gemini" if GEMINI_API_KEY else "🔴 Gemini (Secrets 필요)")
-    if not TOSS_ENABLED:
-        st.write("⚪ 토스쇼핑 (미사용)")
-    elif use_relay():
-        st.write("🟢 토스쇼핑 (중계서버 경유)")
-    elif TOSS_HTTPS_PROXY:
-        st.write("🟢 토스쇼핑 (프록시 경유)")
-    else:
-        st.write("🟢 토스쇼핑 (직접 연결)")
     st.divider()
     if st.button("🧪 실시간 연결 테스트", use_container_width=True):
         with st.spinner("테스트 중..."):
@@ -75,45 +63,9 @@ with st.sidebar:
                     st.write(f"🟢 Gemini: 정상 ({_gok})" if _gok else f"🔴 Gemini: 실패 ({_gerr})")
             except Exception as e:
                 st.write(f"🔴 Gemini: 실패 ({str(e)[:120]})")
-            try:
-                if not TOSS_ENABLED:
-                    st.write("⚪ 토스: 미사용 (키 3개 필요)")
-                else:
-                    _titems = fetch_best_selling(TOSS_ACCESS_KEY, TOSS_SECRET_KEY, size=1)
-                    _tname = _titems[0].get("displayName", "")[:25] if _titems else ""
-                    st.write(f"🟢 토스: 정상 ({_tname})" if _titems else "🟡 토스: 응답 0건")
-            except Exception as e:
-                _emsg = str(e)[:200]
-                _hint = ""
-                if "SHARELINK_OPENAPI_ACCESS_DENIED" in _emsg:
-                    _hint = " → 어드민 IP 등록 + 쉐어링크용 키 확인 필요"
-                elif "401" in _emsg or "invalid_token" in _emsg.lower():
-                    _hint = " → 키 재발급 필요"
-                st.write(f"🔴 토스: 실패 ({_emsg}{_hint})")
     st.divider()
     st.info("💡 키 관리는 우측 하단 Secrets에서만. 여긴 상태 표시 전용입니다.")
 
-def _attach_toss_footer(blog_content, keyword):
-    """토스 설정이 켜져 있으면 베스트상품 박스를 하단에 삽입. 실패해도 원본 반환."""
-    if not blog_content or not TOSS_ENABLED:
-        return blog_content
-    if not ((TOSS_ACCESS_KEY and TOSS_SECRET_KEY and TOSS_PUBLISHER_ID) or use_relay()):
-        return blog_content
-    try:
-        with st.spinner("🛒 글 문맥에 맞는 토스쇼핑 베스트상품 찾는 중..."):
-            new_content = append_toss_footer(
-                blog_content,
-                keyword=keyword,
-                access_key=TOSS_ACCESS_KEY,
-                secret_key=TOSS_SECRET_KEY,
-                publisher_id=TOSS_PUBLISHER_ID,
-                gemini_api_key=GEMINI_API_KEY,
-                count=int(TOSS_PRODUCT_COUNT or 3),
-            )
-        return new_content
-    except Exception as e:
-        st.warning(f"토스 상품 삽입 실패 (글은 정상 생성됨): {e}")
-        return blog_content
 
 st.title("📝 AutoBlog 자동 포스팅 시스템")
 st.markdown("네이버 뉴스 검색과 Gemini AI를 활용하여 팩트 기반의 블로그 글을 자동으로 생성합니다.")
@@ -163,14 +115,13 @@ with col_left:
                         continue
                     _remember_titles(news_items_with_content)
                         
-                    blog_post_content = synthesize_blog_post(news_items_with_content, topic, ad_count=int(TOSS_PRODUCT_COUNT or 3))
+                    blog_post_content = synthesize_blog_post(news_items_with_content, topic)
 
                     if not blog_post_content:
                         st.write(f"⚠️ '{topic}' 글 생성 실패: {getattr(synthesize_blog_post, 'last_error', '')}".strip()[:500])
                         continue
                     
                     if blog_post_content:
-                        blog_post_content = _attach_toss_footer(blog_post_content, topic)
                         now = datetime.datetime.now()
                         ampm = "오전" if now.hour < 12 else "오후"
                         time_str = now.strftime(f"%Y-%m-%d {ampm} %I:%M")
@@ -184,8 +135,6 @@ with col_left:
                         st.write(f"✅ '{topic}' 완료!")
                         
                 status.update(label="🎉 8개 카테고리 일괄 생성 완료!", state="complete", expanded=False)
-                if not TOSS_ENABLED:
-                    st.write("ℹ️ 토스쇼핑 키 미등록으로 상품 박스는 생략됐습니다. Secrets 등록 시 다음 글부터 자동 삽입됩니다.")
             st.success("작업 완료! 우측 [보관함]을 확인해주세요!")
 
     st.divider()
@@ -229,12 +178,11 @@ with col_left:
                         st.error("기사 본문 추출 실패.")
                     else:
                         _remember_titles(news_items_with_content)
-                        blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword, ad_count=int(TOSS_PRODUCT_COUNT or 3))
+                        blog_post_content = synthesize_blog_post(news_items_with_content, target_keyword)
                         if not blog_post_content:
                             st.error(f"블로그 글 생성 실패: {getattr(synthesize_blog_post, 'last_error', '')}".strip()[:500])
                 
                 if blog_post_content:
-                    blog_post_content = _attach_toss_footer(blog_post_content, target_keyword)
                     now = datetime.datetime.now()
                     ampm = "오전" if now.hour < 12 else "오후"
                     time_str = now.strftime(f"%Y-%m-%d {ampm} %I:%M")
@@ -244,8 +192,6 @@ with col_left:
                         "content": blog_post_content
                     })
                     status.update(label="생성 완료!", state="complete", expanded=False)
-                    if not TOSS_ENABLED:
-                        st.caption("ℹ️ 토스쇼핑 키 미등록으로 상품 박스는 생략됐습니다.")
 
 
 # --- 우측: 보관함 영역 ---
